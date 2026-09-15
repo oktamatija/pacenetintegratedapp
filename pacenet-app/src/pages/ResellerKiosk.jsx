@@ -451,15 +451,15 @@ export default function ResellerKiosk({ currentUser, userProfile, isReadOnly }) 
                 width: '48px',
                 height: '48px',
                 borderRadius: '12px',
-                background: result.status === 'unused' ? 'rgba(16, 185, 129, 0.2)' : (result.status === 'active' ? 'rgba(0, 210, 211, 0.2)' : 'rgba(148, 163, 184, 0.2)'),
-                color: result.status === 'unused' ? 'var(--accent-emerald)' : (result.status === 'active' ? 'var(--accent-cyan)' : '#94a3b8'),
+                background: result.status === 'unused' ? 'rgba(16, 185, 129, 0.2)' : (result.status === 'active' ? 'rgba(0, 210, 211, 0.2)' : (result.status === 'expired' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(148, 163, 184, 0.2)')),
+                color: result.status === 'unused' ? 'var(--accent-emerald)' : (result.status === 'active' ? 'var(--accent-cyan)' : (result.status === 'expired' ? 'var(--accent-rose)' : '#94a3b8')),
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
                 {result.status === 'unused' && <CheckCircle2 size={26} />}
                 {result.status === 'active' && <Wifi size={26} />}
-                {result.status === 'expired' && <Clock size={26} />}
+                {result.status === 'expired' && <XCircle size={26} />}
                 {result.status === 'not_found' && <XCircle size={26} />}
               </div>
               <div>
@@ -482,11 +482,12 @@ export default function ResellerKiosk({ currentUser, userProfile, isReadOnly }) 
                 fontWeight: 800,
                 padding: '6px 14px',
                 borderRadius: '20px',
-                background: result.status === 'unused' ? 'rgba(16, 185, 129, 0.2)' : (result.status === 'active' ? 'rgba(0, 210, 211, 0.2)' : 'rgba(148, 163, 184, 0.2)'),
-                color: result.status === 'unused' ? 'var(--accent-emerald)' : (result.status === 'active' ? 'var(--accent-cyan)' : '#94a3b8'),
-                border: `1px solid ${result.status === 'unused' ? 'var(--accent-emerald)' : (result.status === 'active' ? 'var(--accent-cyan)' : '#94a3b8')}44`
+                background: result.status === 'unused' ? 'rgba(16, 185, 129, 0.2)' : (result.status === 'active' ? 'rgba(0, 210, 211, 0.2)' : (result.status === 'expired' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(148, 163, 184, 0.2)')),
+                color: result.status === 'unused' ? 'var(--accent-emerald)' : (result.status === 'active' ? 'var(--accent-cyan)' : (result.status === 'expired' ? 'var(--accent-rose)' : '#94a3b8')),
+                border: `1px solid ${result.status === 'unused' ? 'var(--accent-emerald)' : (result.status === 'active' ? 'var(--accent-cyan)' : (result.status === 'expired' ? 'var(--accent-rose)' : '#94a3b8'))}44`
               }}>
                 {result.status === 'active' && <span className="pulse-dot-green"></span>}
+                {result.status === 'expired' && <XCircle size={14} color="var(--accent-rose)" />}
                 {result.status_label}
               </span>
             </div>
@@ -581,6 +582,11 @@ export default function ResellerKiosk({ currentUser, userProfile, isReadOnly }) 
                       Telah ditandai terjual pada: <strong>{result.sold_info.sold_at}</strong> oleh <strong>{result.sold_info.kiosk_name || result.sold_info.kiosk_user}</strong>
                     </span>
                   </div>
+                ) : result.status === 'expired' ? (
+                  <div style={{ fontSize: '12px', color: 'var(--accent-rose)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <XCircle size={14} />
+                    <span>Masa berlaku voucher ini telah habis. Voucher tidak dapat digunakan atau dijual lagi.</span>
+                  </div>
                 ) : (
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
                     Voucher ini belum ditandai terjual oleh kios. Klik tombol di samping saat pelanggan membeli.
@@ -588,7 +594,7 @@ export default function ResellerKiosk({ currentUser, userProfile, isReadOnly }) 
                 )}
               </div>
 
-              {!isReadOnly && (
+              {!isReadOnly && result.status !== 'expired' && (
                 <button
                   className={`btn ${result.sold_info ? 'btn-secondary' : 'btn-primary'} btn-sm`}
                   onClick={handleMarkSold}

@@ -92,6 +92,30 @@ if (function_exists('pg_connect')) {
             }
         }
 
+        // Also check pacenet_vouchers with first_login
+        $qPv = @pg_query($pg, "
+            SELECT 
+                username, 
+                profile, 
+                validity, 
+                EXTRACT(EPOCH FROM (NOW() - first_login)) as elapsed_seconds
+            FROM pacenet_vouchers
+            WHERE first_login IS NOT NULL AND status != 'expired'
+        ");
+        if ($qPv) {
+            while ($pv = pg_fetch_assoc($qPv)) {
+                $elapsed = floatval($pv['elapsed_seconds'] ?? 0);
+                $valStr = $pv['validity'] ?: ($pv['profile'] ?: '12h');
+                $parsedVal = parseBilingualDuration($valStr);
+                $limitSec = $parsedVal['valid'] ? $parsedVal['seconds'] : 43200;
+
+                if ($limitSec > 0 && $elapsed >= $limitSec) {
+                    $expiredRadiusUsers[] = $pv['username'];
+                }
+            }
+        }
+        $expiredRadiusUsers = array_unique($expiredRadiusUsers);
+
         // Purge expired users from radcheck and radusergroup
         if (!empty($expiredRadiusUsers)) {
             @pg_query($pg, "BEGIN");

@@ -137,6 +137,16 @@ if ($action === 'check' || ($method === 'GET' && empty($action) && isset($_GET['
                 }
             }
 
+            $firstLogin = $v['first_login'] ?? null;
+            if (!empty($firstLogin)) {
+                $loginTs = strtotime($firstLogin);
+                $durationParsed = parseBilingualDuration($vValidity);
+                $valSec = $durationParsed['valid'] ? $durationParsed['seconds'] : 43200;
+                if (time() >= ($loginTs + $valSec)) {
+                    $vStatus = 'expired';
+                }
+            }
+
             if ($isActive) {
                 $vStatus = 'active';
                 $vUptime = $actObj['uptime'] ?? $vUptime;
@@ -151,6 +161,15 @@ if ($action === 'check' || ($method === 'GET' && empty($action) && isset($_GET['
                 $statusLabel = 'SUDAH HABIS / KEDALUWARSA';
             } else {
                 $statusLabel = 'VALID & BELUM TERPAKAI (Siap Dijual)';
+            }
+
+            $firstLoginLabel = 'Belum pernah login';
+            if ($isActive) {
+                $firstLoginLabel = 'Sedang aktif online';
+            } elseif (!empty($firstLogin)) {
+                $firstLoginLabel = date('d M Y H:i:s', strtotime($firstLogin));
+            } elseif ($vUptime !== '0s' && !empty($vUptime)) {
+                $firstLoginLabel = "Uptime tercatat: $vUptime";
             }
 
             $foundVoucher = array(
@@ -169,7 +188,7 @@ if ($action === 'check' || ($method === 'GET' && empty($action) && isset($_GET['
                 'ip' => $actObj['address'] ?? '-',
                 'mac' => $actObj['mac-address'] ?? '-',
                 'bytes_human' => formatBytesReadable($vBytes),
-                'first_login_at' => $isActive ? 'Sedang aktif (Login hari ini)' : ($vUptime !== '0s' ? "Uptime tercatat: $vUptime" : 'Belum pernah login'),
+                'first_login_at' => $firstLoginLabel,
                 'sold_info' => $soldInfo
             );
         }
