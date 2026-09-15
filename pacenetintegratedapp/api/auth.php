@@ -75,8 +75,8 @@ if ($action === 'check' || ($method === 'GET' && empty($action))) {
 
 // 2. LOGIN
 if ($action === 'login' || ($method === 'POST' && (isset($body['user']) || isset($_POST['user'])))) {
-    $user = strtolower(trim($body['user'] ?? $_POST['user'] ?? ''));
-    $pass = trim($body['pass'] ?? $_POST['pass'] ?? '');
+    $user = strtolower(trim($body['user'] ?? $body['username'] ?? $_POST['user'] ?? $_POST['username'] ?? ''));
+    $pass = trim($body['pass'] ?? $body['password'] ?? $_POST['pass'] ?? $_POST['password'] ?? '');
 
     if (empty($user) || empty($pass)) {
         session_write_close();

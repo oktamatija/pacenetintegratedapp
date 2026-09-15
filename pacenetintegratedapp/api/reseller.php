@@ -100,15 +100,91 @@ if ($action === 'check' || ($method === 'GET' && empty($action) && isset($_GET['
         }
     }
 
-    foreach ($targetRouters as $sName => $rCfg) {
-        $rApi = new RouterosAPI();
-        $rApi->timeout = 2;
-        $rApi->attempts = 1;
-        $rApi->debug = false;
+    // 1. Check PostgreSQL pacenet_vouchers first (Single Source of Truth)
+    $pg = getPgDb();
+    if ($pg) {
+        $pRes = pg_query_params($pg, "SELECT * FROM pacenet_vouchers WHERE LOWER(username) = LOWER($1) LIMIT 1", array($code));
+        if ($pRes && pg_num_rows($pRes) > 0) {
+            $v = pg_fetch_assoc($pRes);
+            $vProfile = $v['profile'];
+            $vPrice = floatval($v['price']);
+            $vValidity = $v['validity'] ?: '12h';
+            $vStatus = $v['status'] ?: 'unused';
+            $vUptime = $v['uptime'] ?: '0s';
+            $vBytes = intval($v['bytes_in'] ?? 0) + intval($v['bytes_out'] ?? 0);
+            $rOrigin = $v['router_origin'] ?: 'Pacenet Cloud';
 
-        if (!$rApi->connect($rCfg['ip'], $rCfg['user'], decrypt($rCfg['pass']))) {
-            continue;
+            // Check if active on any connected router
+            $isActive = false;
+            $actObj = null;
+            $activeRouter = $rOrigin;
+
+            foreach ($targetRouters as $sName => $rCfg) {
+                $rApi = new RouterosAPI();
+                $rApi->timeout = 2;
+                $rApi->attempts = 1;
+                $rApi->debug = false;
+                if ($rApi->connect($rCfg['ip'], $rCfg['user'], decrypt($rCfg['pass']))) {
+                    $act = $rApi->comm('/ip/hotspot/active/print', array('?user' => $code));
+                    if (is_array($act) && count($act) > 0) {
+                        $isActive = true;
+                        $actObj = $act[0];
+                        $activeRouter = $rCfg['name'] ?? $sName;
+                        $rApi->disconnect();
+                        break;
+                    }
+                    $rApi->disconnect();
+                }
+            }
+
+            if ($isActive) {
+                $vStatus = 'active';
+                $vUptime = $actObj['uptime'] ?? $vUptime;
+                $vBytes = intval($actObj['bytes-in'] ?? 0) + intval($actObj['bytes-out'] ?? 0);
+            }
+
+            if ($vStatus === 'active') {
+                $statusLabel = 'SEDANG DIGUNAKAN (User Aktif Online)';
+            } elseif ($vStatus === 'disabled') {
+                $statusLabel = 'DINONAKTIFKAN (Nonaktif)';
+            } elseif ($vStatus === 'expired') {
+                $statusLabel = 'SUDAH HABIS / KEDALUWARSA';
+            } else {
+                $statusLabel = 'VALID & BELUM TERPAKAI (Siap Dijual)';
+            }
+
+            $foundVoucher = array(
+                'code' => $code,
+                'router_session' => $filterRouter !== 'all' ? $filterRouter : 'all',
+                'router_name' => $activeRouter,
+                'status' => $vStatus,
+                'status_label' => $statusLabel,
+                'is_valid' => ($vStatus === 'unused'),
+                'profile' => $vProfile,
+                'price' => $vPrice,
+                'price_formatted' => 'Rp ' . number_format($vPrice, 0, ',', '.'),
+                'validity' => $vValidity,
+                'uptime' => $vUptime,
+                'session_left' => $actObj['session-time-left'] ?? '-',
+                'ip' => $actObj['address'] ?? '-',
+                'mac' => $actObj['mac-address'] ?? '-',
+                'bytes_human' => formatBytesReadable($vBytes),
+                'first_login_at' => $isActive ? 'Sedang aktif (Login hari ini)' : ($vUptime !== '0s' ? "Uptime tercatat: $vUptime" : 'Belum pernah login'),
+                'sold_info' => $soldInfo
+            );
         }
+    }
+
+    if (!$foundVoucher) {
+        foreach ($targetRouters as $sName => $rCfg) {
+            $rApi = new RouterosAPI();
+            $rApi->timeout = 2;
+            $rApi->attempts = 1;
+            $rApi->debug = false;
+
+            if (!$rApi->connect($rCfg['ip'], $rCfg['user'], decrypt($rCfg['pass']))) {
+                continue;
+            }
 
         // Check active session
         $act = $rApi->comm('/ip/hotspot/active/print', array('?user' => $code));
@@ -219,6 +295,7 @@ if ($action === 'check' || ($method === 'GET' && empty($action) && isset($_GET['
             );
             break;
         }
+    }
     }
 
     if ($foundVoucher) {

@@ -389,4 +389,13 @@ function parseHotspotExpirationTimestamp($comment) {
     return false;
 }
 
-
+/**
+ * Connect to PostgreSQL radius database (Pacenet Single Source of Truth)
+ */
+function getPgDb() {
+    static $pg = null;
+    if ($pg !== null) return $pg;
+    if (!function_exists('pg_connect')) return null;
+    $pg = @pg_connect("host=127.0.0.1 port=5432 dbname=radius user=radius password=RadiusPg2026");
+    return $pg ?: null;
+}

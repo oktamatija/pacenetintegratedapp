@@ -102,6 +102,7 @@ if (function_exists('pg_connect')) {
                 @pg_query($pg, "DELETE FROM radcheck WHERE username IN ($escList)");
                 @pg_query($pg, "DELETE FROM radusergroup WHERE username IN ($escList)");
                 @pg_query($pg, "DELETE FROM radreply WHERE username IN ($escList)");
+                @pg_query($pg, "UPDATE pacenet_vouchers SET status = 'expired' WHERE username IN ($escList)");
             }
             @pg_query($pg, "COMMIT");
 

@@ -20,6 +20,7 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
   const [profiles, setProfiles] = useState([]);
   const [routers, setRouters] = useState([]);
   const [selectedRouter, setSelectedRouter] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   const [total, setTotal] = useState(0);
   const [totalAll, setTotalAll] = useState(0);
   const [page, setPage] = useState(1);
@@ -29,6 +30,7 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
   const [selectedProfile, setSelectedProfile] = useState('all');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const [cleaningMikrotik, setCleaningMikrotik] = useState(false);
 
   const fetchVouchers = async (refresh = false) => {
     setLoading(true);
@@ -40,6 +42,7 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
         search,
         profile: selectedProfile,
         router: selectedRouter,
+        status: selectedStatus,
         refresh: refresh ? '1' : '0'
       });
       const res = await fetch(`/api/vouchers.php?${q.toString()}`);
@@ -61,7 +64,7 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
 
   useEffect(() => {
     fetchVouchers();
-  }, [page, limit, selectedProfile, selectedRouter]);
+  }, [page, limit, selectedProfile, selectedRouter, selectedStatus]);
 
   // Debounced search
   useEffect(() => {
@@ -71,6 +74,38 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Clean up offline users from MikroTik
+  const handleCleanupMikrotik = async () => {
+    if (isReadOnly) {
+      alert('Akses Ditolak: Akun Demo berstatus Read-Only.');
+      return;
+    }
+    const ok = window.confirm(
+      'PEMBERSIHAN USER LOKAL MIKROTIK:\n\n' +
+      'Aksi ini akan menghapus ribuan akun voucher offline dari memori MikroTik (/ip hotspot user) ' +
+      'karena seluruh voucher telah tersimpan 100% aman di Database Pacenet Billing System (Single Source of Truth).\n\n' +
+      'Pelanggan yang sedang online tidak akan terputus dan login selanjutnya langsung ditangani oleh FreeRADIUS.\n\n' +
+      'Lanjutkan pembersihan?'
+    );
+    if (!ok) return;
+
+    setCleaningMikrotik(true);
+    try {
+      const res = await fetch('/api/vouchers.php?action=cleanup_mikrotik_local_users', { method: 'POST' });
+      const json = await res.json();
+      if (json.success) {
+        alert('Sukses: Seluruh voucher offline di memori MikroTik berhasil dibersihkan! MikroTik kini bersih, ringan, dan tidak ada lagi kesalahan pembacaan.');
+        fetchVouchers(true);
+      } else {
+        alert(json.message || 'Gagal membersihkan user MikroTik.');
+      }
+    } catch (e) {
+      alert('Gagal menghubungi server.');
+    } finally {
+      setCleaningMikrotik(false);
+    }
+  };
 
   // Toggle user disabled status
   const handleToggle = async (u) => {
@@ -83,11 +118,11 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
       const res = await fetch('/api/vouchers.php?action=toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: u.id, router: u.router_session, disabled: !u.disabled })
+        body: JSON.stringify({ id: u.id, name: u.name, router: u.router_session, disabled: !u.disabled })
       });
       const json = await res.json();
       if (json.success) {
-        setUsers(users.map(item => item.id === u.id ? { ...item, disabled: !item.disabled } : item));
+        setUsers(users.map(item => item.id === u.id ? { ...item, disabled: !item.disabled, status: !item.disabled ? 'disabled' : 'unused' } : item));
       } else {
         alert(json.message || 'Gagal mengubah status voucher.');
       }
@@ -104,13 +139,13 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
       alert('Akses Ditolak: Akun Demo berstatus Read-Only. Penghapusan voucher dinonaktifkan.');
       return;
     }
-    if (!window.confirm(`Yakin ingin menghapus voucher "${u.name}"?`)) return;
+    if (!window.confirm(`Yakin ingin menghapus voucher "${u.name}" dari Pacenet?`)) return;
     setActionLoading(u.id);
     try {
       const res = await fetch('/api/vouchers.php?action=delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: u.id, router: u.router_session })
+        body: JSON.stringify({ id: u.id, name: u.name, router: u.router_session })
       });
       const json = await res.json();
       if (json.success) {
@@ -137,11 +172,11 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
       const res = await fetch('/api/vouchers.php?action=reset_counters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: u.id, router: u.router_session })
+        body: JSON.stringify({ id: u.id, name: u.name, router: u.router_session })
       });
       const json = await res.json();
       if (json.success) {
-        setUsers(users.map(item => item.id === u.id ? { ...item, uptime: '0s', bytes_in: 0, bytes_out: 0 } : item));
+        setUsers(users.map(item => item.id === u.id ? { ...item, uptime: '0s', bytes_in: 0, bytes_out: 0, status: 'unused' } : item));
       } else {
         alert(json.message || 'Gagal me-reset counter voucher.');
       }
@@ -165,14 +200,25 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
       }}>
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#fff' }}>
-            Manajemen Voucher & User Terpusat
+            Manajemen Voucher Terpusat (Single Source of Truth)
           </h2>
           <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            Database Master MikroTik: <strong>{totalAll.toLocaleString()}</strong> total voucher terdaftar.
+            Database Pacenet Cloud (PostgreSQL FreeRADIUS): <strong>{totalAll.toLocaleString()}</strong> total voucher terdaftar.
           </p>
         </div>
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button 
+            className="btn btn-secondary btn-sm"
+            onClick={handleCleanupMikrotik}
+            disabled={cleaningMikrotik}
+            style={{ borderColor: 'rgba(245, 158, 11, 0.4)', color: '#fbbf24' }}
+            title="Bersihkan akun voucher offline dari tabel /ip hotspot user MikroTik (Beralih ke FreeRADIUS murni)"
+          >
+            <Trash2 size={14} className={cleaningMikrotik ? 'spin-anim' : ''} />
+            <span>{cleaningMikrotik ? 'Membersihkan MikroTik...' : 'Bersihkan User MikroTik'}</span>
+          </button>
+
           <button 
             className="btn btn-secondary btn-sm"
             onClick={() => onNavigate('print')}
@@ -242,6 +288,21 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
 
             <select
               className="filter-select"
+              value={selectedStatus}
+              onChange={e => {
+                setSelectedStatus(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="all">Semua Status</option>
+              <option value="unused">Belum Pakai</option>
+              <option value="active">Sedang Online</option>
+              <option value="expired">Expired</option>
+              <option value="disabled">Nonaktif</option>
+            </select>
+
+            <select
+              className="filter-select"
               value={limit}
               onChange={e => {
                 setLimit(Number(e.target.value));
@@ -274,7 +335,7 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
           <table className="data-table">
             <thead>
               <tr>
-                <th style={{ width: '50px' }}>Status</th>
+                <th style={{ width: '110px' }}>Status</th>
                 <th>Router</th>
                 <th>Username / Voucher</th>
                 <th>Password</th>
@@ -290,13 +351,13 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
                 <tr>
                   <td colSpan={9} style={{ textAlign: 'center', padding: '40px' }}>
                     <RefreshCw size={24} className="spin-anim" style={{ margin: '0 auto 10px', color: 'var(--accent-cyan)' }} />
-                    <p style={{ color: 'var(--text-muted)' }}>Memuat data ribuan voucher dari seluruh router MikroTik...</p>
+                    <p style={{ color: 'var(--text-muted)' }}>Memuat data ribuan voucher dari Database Pacenet Cloud...</p>
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
                   <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                    Tidak ada voucher yang cocok dengan filter router / profil.
+                    Tidak ada voucher yang cocok dengan filter router / profil / status.
                   </td>
                 </tr>
               ) : (
@@ -305,10 +366,24 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
                   return (
                     <tr key={`${u.router_session || 'r'}_${u.id}`} style={{ opacity: isBusy ? 0.5 : 1 }}>
                       <td>
-                        {u.disabled ? (
-                          <XCircle size={17} color="var(--accent-rose)" title="Nonaktif (Disabled)" />
+                        {u.status === 'active' ? (
+                          <span className="tag tag-emerald" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '2px 8px' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }}></span>
+                            Online
+                          </span>
+                        ) : u.status === 'disabled' || u.disabled ? (
+                          <span className="tag tag-rose" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '2px 8px' }}>
+                            <XCircle size={11} />
+                            Nonaktif
+                          </span>
+                        ) : u.status === 'expired' ? (
+                          <span className="tag tag-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '2px 8px' }}>
+                            Expired
+                          </span>
                         ) : (
-                          <CheckCircle2 size={17} color="var(--accent-emerald)" title="Aktif" />
+                          <span className="tag tag-blue" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '2px 8px' }}>
+                            Belum Pakai
+                          </span>
                         )}
                       </td>
                       <td>

@@ -139,58 +139,44 @@ for ($i = 0; $i < $qty; $i++) {
     );
 }
 
-// 2. Push generated users to target router(s)
-$connectedCount = 0;
-foreach ($targetRouters as $sName) {
-    $conn = connectMikrotik($sName, 5);
-    if (!$conn) continue;
+// Store vouchers in Centralized Pacenet Database (PostgreSQL / FreeRADIUS) - Single Source of Truth!
+// No import to MikroTik /ip/hotspot/user! Users authenticate dynamically via RADIUS.
+$pg = getPgDb();
+if ($pg) {
+    @pg_query($pg, "BEGIN");
+    @pg_prepare($pg, "gen_voucher", "
+        INSERT INTO pacenet_vouchers (username, password, profile, price, validity, comment, status, uptime, bytes_total, router_origin)
+        VALUES ($1, $2, $3, $4, $5, $6, 'unused', '0s', 0, $7)
+        ON CONFLICT (username) DO NOTHING
+    ");
+    @pg_prepare($pg, "gen_radcheck", "
+        INSERT INTO radcheck (username, attribute, op, value)
+        VALUES ($1, 'Cleartext-Password', ':=', $2)
+        ON CONFLICT DO NOTHING
+    ");
+    @pg_prepare($pg, "gen_radgroup", "
+        INSERT INTO radusergroup (username, groupname, priority)
+        VALUES ($1, $2, 1)
+        ON CONFLICT DO NOTHING
+    ");
 
-    $api = $conn['api'];
-    $connectedCount++;
-
+    $numPrice = floatval(preg_replace('/[^0-9.]/', '', strval($price))) ?: 0;
     foreach ($createdList as $cu) {
-        $addParams = array(
-            'server' => $server,
-            'name' => $cu['name'],
-            'password' => $cu['password'],
-            'profile' => $profile,
-            'comment' => $comment
-        );
-
-        if (!empty($timelimit)) {
-            $addParams['limit-uptime'] = $timelimit;
-        } elseif (!empty($normValidity)) {
-            $addParams['limit-uptime'] = $normValidity;
-        }
-
-        if (!empty($datalimit)) {
-            $addParams['limit-bytes-total'] = $datalimit;
-        }
-
-        $api->comm('/ip/hotspot/user/add', $addParams);
+        @pg_execute($pg, "gen_voucher", array(
+            $cu['name'],
+            $cu['password'],
+            $profile,
+            $numPrice,
+            $normValidity ?: ($validity ?: '12h'),
+            $comment,
+            $targetRouter === 'all' ? 'Semua Router (Central)' : $targetRouter
+        ));
+        @pg_execute($pg, "gen_radcheck", array($cu['name'], $cu['password']));
+        @pg_execute($pg, "gen_radgroup", array($cu['name'], $profile));
     }
-
-    $api->disconnect();
-}
-
-if ($connectedCount === 0) {
-    jsonResponse(false, null, 'Gagal terhubung ke router MikroTik tujuan', 500);
-}
-
-// Synchronize newly generated vouchers to PostgreSQL FreeRADIUS database
-if (function_exists('pg_connect')) {
-    $pg = @pg_connect("host=127.0.0.1 port=5432 dbname=radius user=radius password=RadiusPg2026");
-    if ($pg) {
-        @pg_query($pg, "BEGIN");
-        @pg_prepare($pg, "gen_radcheck", "INSERT INTO radcheck (username, attribute, op, value) VALUES ($1, 'Cleartext-Password', ':=', $2) ON CONFLICT DO NOTHING");
-        @pg_prepare($pg, "gen_radgroup", "INSERT INTO radusergroup (username, groupname, priority) VALUES ($1, $2, 1) ON CONFLICT DO NOTHING");
-        foreach ($createdList as $cu) {
-            @pg_execute($pg, "gen_radcheck", array($cu['name'], $cu['password']));
-            @pg_execute($pg, "gen_radgroup", array($cu['name'], $profile));
-        }
-        @pg_query($pg, "COMMIT");
-        @pg_close($pg);
-    }
+    @pg_query($pg, "COMMIT");
+} else {
+    jsonResponse(false, null, 'Gagal terhubung ke database terpusat Pacenet (PostgreSQL)', 500);
 }
 
 
