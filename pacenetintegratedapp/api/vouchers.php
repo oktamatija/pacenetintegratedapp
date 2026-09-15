@@ -276,6 +276,139 @@ if ($action === 'reset_counters') {
     jsonResponse(true, array('id' => $id, 'username' => $name), 'Counter voucher berhasil direset');
 }
 
+// 6. ADD SINGLE VOUCHER
+if ($action === 'add') {
+    $uname = trim($body['username'] ?? $body['name'] ?? $_POST['username'] ?? '');
+    $pass = trim($body['password'] ?? $_POST['password'] ?? '');
+    if (empty($pass)) $pass = $uname;
+    $profile = trim($body['profile'] ?? $_POST['profile'] ?? '12-jam');
+    $price = floatval($body['price'] ?? $_POST['price'] ?? 0);
+    $validity = trim($body['validity'] ?? $_POST['validity'] ?? '');
+    $comment = trim($body['comment'] ?? $_POST['comment'] ?? 'manual-entry');
+    $routerOrigin = trim($body['router'] ?? $_POST['router'] ?? 'Pacenet Cloud');
+
+    if (empty($uname)) {
+        jsonResponse(false, null, 'Username/Kode voucher wajib diisi', 400);
+    }
+
+    if (empty($price)) {
+        if (strpos($profile, '12-jam') !== false) $price = 4000;
+        elseif (strpos($profile, '1minggu') !== false) $price = 40000;
+        elseif (strpos($profile, '1bulan') !== false) $price = 100000;
+        else $price = 5000;
+    }
+    if (empty($validity)) {
+        if (strpos($profile, '12-jam') !== false) $validity = '12h';
+        elseif (strpos($profile, '1minggu') !== false) $validity = '7d';
+        elseif (strpos($profile, '1bulan') !== false) $validity = '30d';
+        else $validity = '1d';
+    }
+
+    // Check duplicate
+    $chk = pg_query_params($pg, "SELECT id FROM pacenet_vouchers WHERE username = $1", array($uname));
+    if ($chk && pg_num_rows($chk) > 0) {
+        jsonResponse(false, null, "Username '$uname' sudah terdaftar dalam sistem", 400);
+    }
+
+    pg_query_params($pg, "
+        INSERT INTO pacenet_vouchers (username, password, profile, price, validity, comment, status, uptime, bytes_total, router_origin)
+        VALUES ($1, $2, $3, $4, $5, $6, 'unused', '0s', 0, $7)
+    ", array($uname, $pass, $profile, $price, $validity, $comment, $routerOrigin));
+
+    pg_query_params($pg, "
+        INSERT INTO radcheck (username, attribute, op, value)
+        VALUES ($1, 'Cleartext-Password', ':=', $2)
+        ON CONFLICT (username) DO UPDATE SET value = EXCLUDED.value
+    ", array($uname, $pass));
+
+    pg_query_params($pg, "
+        INSERT INTO radusergroup (username, groupname, priority)
+        VALUES ($1, $2, 1)
+        ON CONFLICT DO NOTHING
+    ", array($uname, $profile));
+
+    jsonResponse(true, array('username' => $uname, 'profile' => $profile), 'Voucher baru berhasil ditambahkan.');
+}
+
+// 7. EDIT VOUCHER
+if ($action === 'edit') {
+    $id = $body['id'] ?? $_POST['id'] ?? '';
+    $uname = trim($body['username'] ?? $body['name'] ?? $_POST['username'] ?? '');
+    $pass = trim($body['password'] ?? $_POST['password'] ?? '');
+    $profile = trim($body['profile'] ?? $_POST['profile'] ?? '');
+    $price = floatval($body['price'] ?? $_POST['price'] ?? 0);
+    $validity = trim($body['validity'] ?? $_POST['validity'] ?? '');
+    $comment = trim($body['comment'] ?? $_POST['comment'] ?? '');
+    $status = trim($body['status'] ?? $_POST['status'] ?? '');
+
+    if (empty($uname) && !empty($id)) {
+        $nRes = pg_query_params($pg, "SELECT username FROM pacenet_vouchers WHERE id = $1", array($id));
+        $uname = $nRes ? pg_fetch_result($nRes, 0, 'username') : '';
+    }
+
+    if (empty($uname)) {
+        jsonResponse(false, null, 'Username voucher tidak ditemukan', 400);
+    }
+
+    $curRes = pg_query_params($pg, "SELECT * FROM pacenet_vouchers WHERE username = $1", array($uname));
+    if (!$curRes || pg_num_rows($curRes) === 0) {
+        jsonResponse(false, null, 'Voucher tidak ditemukan di database', 404);
+    }
+    $cur = pg_fetch_assoc($curRes);
+
+    $pass = !empty($pass) ? $pass : $cur['password'];
+    $profile = !empty($profile) ? $profile : $cur['profile'];
+    $price = $price > 0 ? $price : floatval($cur['price']);
+    $validity = !empty($validity) ? $validity : $cur['validity'];
+    $comment = $comment !== '' ? $comment : $cur['comment'];
+    $status = !empty($status) ? $status : $cur['status'];
+
+    pg_query_params($pg, "
+        UPDATE pacenet_vouchers 
+        SET password = $1, profile = $2, price = $3, validity = $4, comment = $5, status = $6
+        WHERE username = $7
+    ", array($pass, $profile, $price, $validity, $comment, $status, $uname));
+
+    if ($status === 'disabled') {
+        pg_query_params($pg, "DELETE FROM radcheck WHERE username = $1", array($uname));
+    } else {
+        pg_query_params($pg, "
+            INSERT INTO radcheck (username, attribute, op, value)
+            VALUES ($1, 'Cleartext-Password', ':=', $2)
+            ON CONFLICT (username) DO UPDATE SET value = EXCLUDED.value
+        ", array($uname, $pass));
+    }
+
+    if (!empty($profile)) {
+        pg_query_params($pg, "DELETE FROM radusergroup WHERE username = $1", array($uname));
+        pg_query_params($pg, "INSERT INTO radusergroup (username, groupname, priority) VALUES ($1, $2, 1)", array($uname, $profile));
+    }
+
+    jsonResponse(true, array('username' => $uname, 'status' => $status), 'Data voucher berhasil diperbarui.');
+}
+
+// 8. BULK DELETE VOUCHERS
+if ($action === 'bulk_delete') {
+    $usernames = $body['usernames'] ?? $_POST['usernames'] ?? array();
+    if (!is_array($usernames) || empty($usernames)) {
+        jsonResponse(false, null, 'Daftar username yang akan dihapus kosong', 400);
+    }
+
+    $chunkSize = 100;
+    $chunks = array_chunk($usernames, $chunkSize);
+    $deletedTotal = 0;
+
+    foreach ($chunks as $chunk) {
+        $escList = "'" . implode("','", array_map('pg_escape_string', $chunk)) . "'";
+        $dRes = pg_query($pg, "DELETE FROM pacenet_vouchers WHERE username IN ($escList)");
+        pg_query($pg, "DELETE FROM radcheck WHERE username IN ($escList)");
+        pg_query($pg, "DELETE FROM radusergroup WHERE username IN ($escList)");
+        $deletedTotal += pg_affected_rows($dRes);
+    }
+
+    jsonResponse(true, array('count' => $deletedTotal), "Berhasil menghapus $deletedTotal voucher dari sistem.");
+}
+
 // 5. CLEANUP MIKROTIK LOCAL USERS (Safely removes offline voucher users from MikroTik since Pacenet is Single Source of Truth)
 if ($action === 'cleanup_mikrotik_local_users') {
     $results = array();
@@ -317,4 +450,35 @@ if ($action === 'cleanup_mikrotik_local_users') {
     jsonResponse(true, $results, 'Pembersihan user lokal MikroTik selesai. MikroTik kini bersih dan mengandalkan RADIUS Pacenet.');
 }
 
+// 9. PURGE EXPIRED VOUCHERS OLDER THAN 30 DAYS
+if ($action === 'purge_expired_30days') {
+    $qPurge30 = pg_query($pg, "
+        SELECT username FROM pacenet_vouchers 
+        WHERE status = 'expired' 
+          AND (
+            (expired_at IS NOT NULL AND expired_at < NOW() - INTERVAL '30 days')
+            OR (expired_at IS NULL AND COALESCE(last_seen, first_login, created_at) < NOW() - INTERVAL '30 days')
+          )
+        LIMIT 10000
+    ");
+    $deletedTotal = 0;
+    if ($qPurge30 && pg_num_rows($qPurge30) > 0) {
+        $purgeList = array();
+        while ($pRow = pg_fetch_assoc($qPurge30)) {
+            $purgeList[] = $pRow['username'];
+        }
+        $chunks = array_chunk($purgeList, 200);
+        foreach ($chunks as $chunk) {
+            $escPurge = "'" . implode("','", array_map('pg_escape_string', $chunk)) . "'";
+            pg_query($pg, "DELETE FROM pacenet_vouchers WHERE username IN ($escPurge)");
+            pg_query($pg, "DELETE FROM radcheck WHERE username IN ($escPurge)");
+            pg_query($pg, "DELETE FROM radusergroup WHERE username IN ($escPurge)");
+            pg_query($pg, "DELETE FROM radreply WHERE username IN ($escPurge)");
+            $deletedTotal += count($chunk);
+        }
+    }
+    jsonResponse(true, array('purged_count' => $deletedTotal), "Pembersihan selesai: $deletedTotal voucher expired (> 30 hari) berhasil dihapus dari sistem.");
+}
+
 jsonResponse(false, null, 'Invalid action', 400);
+

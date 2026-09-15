@@ -292,6 +292,7 @@ export default function App() {
           {currentPage === 'vouchers' && (
             <Vouchers 
               onNavigate={setCurrentPage} 
+              setVouchersForPrint={setVouchersForPrint}
               isReadOnly={isReadOnly}
             />
           )}

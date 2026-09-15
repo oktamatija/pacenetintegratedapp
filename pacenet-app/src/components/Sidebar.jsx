@@ -60,7 +60,7 @@ export default function Sidebar({
       roles: ['owner', 'admin', 'manager', 'demo'],
       items: [
         { id: 'user_profiles', label: 'User Profiles', icon: Layers, badge: 'Paket' },
-        { id: 'vouchers', label: 'Vouchers Hub', icon: Users, badge: '2.6k+' },
+        { id: 'vouchers', label: 'User / Voucher List', icon: Users, badge: 'Kelola' },
         { id: 'generate', label: 'Batch Generator', icon: PlusCircle },
         { id: 'print', label: 'Quick Print', icon: Printer }
       ]

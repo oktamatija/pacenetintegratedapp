@@ -438,6 +438,47 @@ if ($action === 'quick_vouchers') {
         $query['?comment'] = $commentFilter;
     }
 
+    $pg = getPgDb();
+    if ($pg) {
+        $whereParts = array("status = 'unused'");
+        $params = array();
+        $pIdx = 1;
+        if (!empty($profileName) && $profileName !== 'all') {
+            $whereParts[] = "profile = $" . $pIdx++;
+            $params[] = $profileName;
+        }
+        $whereSql = "WHERE " . implode(' AND ', $whereParts);
+        $vSql = "SELECT id, username, password, profile, price, validity, comment FROM pacenet_vouchers $whereSql ORDER BY id DESC LIMIT $limit";
+        $vRes = !empty($params) ? pg_query_params($pg, $vSql, $params) : pg_query($pg, $vSql);
+        if ($vRes && pg_num_rows($vRes) > 0) {
+            $vouchers = array();
+            while ($r = pg_fetch_assoc($vRes)) {
+                $vouchers[] = array(
+                    'id' => strval($r['id']),
+                    'username' => $r['username'],
+                    'password' => $r['password'] ?: $r['username'],
+                    'profile' => $r['profile'],
+                    'uptime' => '0s',
+                    'limit_uptime' => $r['validity'] ?: '12h',
+                    'comment' => $r['comment'] ?: '',
+                    'price' => floatval($r['price'] ?: 4000),
+                    'sprice' => floatval($r['price'] ?: 4000),
+                    'dns_name' => 'hotspot.yunus',
+                    'hotspot_name' => 'PACENET HOTSPOT',
+                    'currency' => 'Rp'
+                );
+            }
+            sendJsonResponse(true, array(
+                'profile' => $profileName,
+                'dns_name' => 'hotspot.yunus',
+                'hotspot_name' => 'PACENET HOTSPOT',
+                'currency' => 'Rp',
+                'vouchers' => $vouchers
+            ));
+            exit;
+        }
+    }
+
     $users = $api->comm('/ip/hotspot/user/print', $query);
     if (!is_array($users)) $users = array();
 

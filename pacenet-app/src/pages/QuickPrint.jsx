@@ -19,10 +19,8 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
   // Paper Size: 'f4' (55 Vouchers / Sheet), 'grid' (A4 3-Cols), '58mm', '80mm'
   const [paperSize, setPaperSize] = useState('f4');
   const [vouchers, setVouchers] = useState([]);
-  const [routers, setRouters] = useState([]);
-  const [selectedRouter, setSelectedRouter] = useState('');
   const [profiles, setProfiles] = useState([]);
-  const [selectedProfile, setSelectedProfile] = useState(initialProfile || '');
+  const [selectedProfile, setSelectedProfile] = useState(initialProfile || 'all');
   const [voucherLimit, setVoucherLimit] = useState(55);
   const [loading, setLoading] = useState(false);
 
@@ -40,36 +38,16 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
     }
   }, [vouchersForPrint]);
 
-  // Load available routers
+  // Load profiles directly from central Pacenet database
   useEffect(() => {
-    const loadRouters = async () => {
-      try {
-        const res = await fetch('/api/routers.php');
-        const json = await res.json();
-        if (json.success && json.data?.routers) {
-          setRouters(json.data.routers);
-          if (!selectedRouter && json.data.routers.length > 0) {
-            setSelectedRouter(json.data.routers[0].session);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to load routers', e);
-      }
-    };
-    loadRouters();
-  }, []);
-
-  // Load profiles when router changes
-  useEffect(() => {
-    if (!selectedRouter) return;
     const loadProfiles = async () => {
       try {
-        const res = await fetch(`/api/profiles.php?router=${encodeURIComponent(selectedRouter)}`);
+        const res = await fetch('/api/vouchers.php?action=list&limit=1');
         const json = await res.json();
         if (json.success && json.data?.profiles) {
           setProfiles(json.data.profiles);
-          if (!selectedProfile && json.data.profiles.length > 0) {
-            setSelectedProfile(json.data.profiles[0].name);
+          if (!selectedProfile || selectedProfile === 'all') {
+            setSelectedProfile(json.data.profiles[0]?.name || 'all');
           }
         }
       } catch (e) {
@@ -77,22 +55,26 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
       }
     };
     loadProfiles();
-  }, [selectedRouter]);
+  }, []);
 
-  // Fetch vouchers based on selected profile
+  // Fetch vouchers based on selected profile directly from database
   const fetchVouchersByProfile = async () => {
-    if (!selectedRouter || !selectedProfile) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/profiles.php?action=quick_vouchers&router=${encodeURIComponent(selectedRouter)}&profile=${encodeURIComponent(selectedProfile)}&limit=${voucherLimit}`);
+      const q = new URLSearchParams({
+        action: 'quick_vouchers',
+        profile: selectedProfile || 'all',
+        limit: voucherLimit.toString()
+      });
+      const res = await fetch(`/api/profiles.php?${q.toString()}`);
       const json = await res.json();
-      if (json.success && json.data?.vouchers) {
+      if (json.success && json.data?.vouchers && json.data.vouchers.length > 0) {
         setVouchers(json.data.vouchers);
       } else {
-        alert(json.message || 'Tidak ada voucher aktif untuk profil ini.');
+        alert(json.message || 'Tidak ada voucher berstatus belum pakai untuk profil ini.');
       }
     } catch (e) {
-      alert('Gagal mengambil voucher untuk profil.');
+      alert('Gagal mengambil voucher dari database.');
     } finally {
       setLoading(false);
     }
@@ -285,7 +267,7 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
           </div>
         </div>
 
-        {/* Third Row: Router & Profile Filter Bar */}
+        {/* Third Row: Profile & Quantity Filter Bar */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -297,29 +279,14 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Filter size={13} color="var(--accent-cyan)" />
-            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Router:</span>
-            <select
-              className="filter-select"
-              value={selectedRouter}
-              onChange={e => setSelectedRouter(e.target.value)}
-              style={{ padding: '4px 10px', fontSize: '12px' }}
-            >
-              {routers.map(r => (
-                <option key={r.session} value={r.session}>
-                  {r.name || r.session}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Paket Profile:</span>
             <select
               className="filter-select"
               value={selectedProfile}
               onChange={e => setSelectedProfile(e.target.value)}
-              style={{ padding: '4px 10px', fontSize: '12px', minWidth: '140px' }}
+              style={{ padding: '4px 10px', fontSize: '12px', minWidth: '150px' }}
             >
+              <option value="all">Semua Paket Profile</option>
               {profiles.map(p => (
                 <option key={p.name} value={p.name}>
                   {p.name} (Rp {Number(p.sprice || p.price || 0).toLocaleString('id-ID')})
@@ -341,6 +308,7 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
               <option value={165}>165 Slip (3 Lembar F4)</option>
               <option value={220}>220 Slip (4 Lembar F4)</option>
               <option value={275}>275 Slip (5 Lembar F4)</option>
+              <option value={550}>550 Slip (10 Lembar F4)</option>
               <option value={10}>10 Slip (Thermal)</option>
               <option value={25}>25 Slip (Thermal)</option>
               <option value={50}>50 Slip (Thermal)</option>
@@ -353,8 +321,8 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
             disabled={loading}
             style={{ padding: '5px 12px', fontSize: '12px', borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)' }}
           >
-            <RefreshCw size={13} className={loading ? 'spin' : ''} />
-            <span>{loading ? 'Memuat Voucher...' : 'Tarik Voucher Baru'}</span>
+            <RefreshCw size={13} className={loading ? 'spin-anim' : ''} />
+            <span>{loading ? 'Memuat Voucher...' : 'Tarik Voucher Siap Cetak'}</span>
           </button>
         </div>
       </div>
@@ -366,20 +334,33 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
         /* =====================================================================
            MODE 1: EXACT F4 (FOLIO) 55 VOUCHERS PER SHEET (5x11 GRID)
            ===================================================================== */
-        <div className="f4-preview-wrapper" style={{ transform: `scale(${printScale})`, transformOrigin: 'top center' }}>
+        <div className="f4-preview-wrapper">
           {f4Pages.map((pageVouchers, pageIndex) => (
             <div key={pageIndex} className="f4-sheet-container">
+              {/* Screen-only Sheet Indicator */}
               <div className="no-print f4-sheet-badge">
-                <span>📄 Lembar F4 ke-{pageIndex + 1} ({pageVouchers.length} / 55 Voucher)</span>
-                <span>Ukuran Folio Indonesia: 215mm x 330mm (5 Kolom x 11 Baris)</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Layers size={14} color="var(--accent-cyan)" />
+                  <span>Lembar F4 #{pageIndex + 1} of {f4Pages.length} ({pageVouchers.length} Slip Voucher)</span>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', color: 'var(--text-muted)' }}>
+                  <span>Ukuran: 215 x 330 mm</span>
+                  {detectedBatch && <span>Batch: {detectedBatch}</span>}
+                </div>
               </div>
 
-              <div className={`f4-page border-${borderStyle}`}>
+              {/* Physical F4 Sheet */}
+              <div 
+                className={`f4-page border-${borderStyle}`}
+                style={{
+                  transform: printScale !== 1.0 ? `scale(${printScale})` : undefined,
+                  transformOrigin: 'top center'
+                }}
+              >
                 {pageVouchers.map((v, idx) => {
                   const globalNum = pageIndex * 55 + idx + 1;
-                  const isSingleCode = (v.username === v.password) || !v.password;
                   const dnsName = v.dns_name || 'hotspot.yunus';
-                  const loginUrl = `http://${dnsName}/login?username=${encodeURIComponent(v.username)}&password=${encodeURIComponent(v.password || v.username)}`;
+                  const loginUrl = `http://${dnsName}/login?username=${encodeURIComponent(v.username)}&password=${encodeURIComponent(v.username)}`;
 
                   return (
                     <div key={idx} className="v-f4">
@@ -393,18 +374,13 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
                         </div>
                       </div>
 
-                      {/* Body */}
+                      {/* Body: Single Unified Voucher Code */}
                       <div className="v-f4-body">
                         {showQr ? (
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1mm', width: '100%' }}>
                             <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                               <div className="v-f4-label">KODE VOUCHER</div>
                               <div className="v-f4-code v-f4-code-qr">{v.username}</div>
-                              {!isSingleCode && (
-                                <div style={{ fontSize: '6pt', fontWeight: 'bold', marginTop: '0.4mm' }}>
-                                  Pass: <b>{v.password}</b>
-                                </div>
-                              )}
                             </div>
                             <div style={{ width: '18mm', height: '18mm', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               <QRCodeSVG 
@@ -416,23 +392,10 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
                             </div>
                           </div>
                         ) : (
-                          isSingleCode ? (
-                            <div style={{ width: '100%', textAlign: 'center' }}>
-                              <div className="v-f4-label">KODE VOUCHER</div>
-                              <div className="v-f4-code">{v.username}</div>
-                            </div>
-                          ) : (
-                            <div className="v-f4-up">
-                              <div className="v-f4-up-box">
-                                <div className="v-f4-label">Username</div>
-                                <div className="v-f4-val">{v.username}</div>
-                              </div>
-                              <div className="v-f4-up-box">
-                                <div className="v-f4-label">Password</div>
-                                <div className="v-f4-val">{v.password}</div>
-                              </div>
-                            </div>
-                          )
+                          <div style={{ width: '100%', textAlign: 'center' }}>
+                            <div className="v-f4-label">KODE VOUCHER</div>
+                            <div className="v-f4-code">{v.username}</div>
+                          </div>
                         )}
                       </div>
 
@@ -461,9 +424,8 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
            ===================================================================== */
         <div className={`print-container size-${paperSize}`} style={{ transform: `scale(${printScale})`, transformOrigin: 'top center' }}>
           {displayList.map((v, idx) => {
-            const isSingleCode = (v.username === v.password) || !v.password;
             const dnsName = v.dns_name || 'hotspot.yunus';
-            const loginUrl = `http://${dnsName}/login?username=${encodeURIComponent(v.username)}&password=${encodeURIComponent(v.password || v.username)}`;
+            const loginUrl = `http://${dnsName}/login?username=${encodeURIComponent(v.username)}&password=${encodeURIComponent(v.username)}`;
 
             return (
               <div key={idx} className={`voucher-slip border-${borderStyle}`}>
@@ -479,11 +441,8 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
                     </div>
                   )}
 
-                  <div className="slip-label">KODE VOUCHER / USERNAME</div>
+                  <div className="slip-label">KODE VOUCHER</div>
                   <div className="slip-code">{v.username}</div>
-                  {!isSingleCode && (
-                    <div className="slip-pass">Password: <strong>{v.password}</strong></div>
-                  )}
                 </div>
 
                 <div className="slip-footer">

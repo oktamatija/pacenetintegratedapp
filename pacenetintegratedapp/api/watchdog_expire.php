@@ -126,11 +126,36 @@ if (function_exists('pg_connect')) {
                 @pg_query($pg, "DELETE FROM radcheck WHERE username IN ($escList)");
                 @pg_query($pg, "DELETE FROM radusergroup WHERE username IN ($escList)");
                 @pg_query($pg, "DELETE FROM radreply WHERE username IN ($escList)");
-                @pg_query($pg, "UPDATE pacenet_vouchers SET status = 'expired' WHERE username IN ($escList)");
+                @pg_query($pg, "UPDATE pacenet_vouchers SET status = 'expired', expired_at = COALESCE(expired_at, NOW()) WHERE username IN ($escList)");
             }
             @pg_query($pg, "COMMIT");
 
             $results['radius_expired_purged'] = count($expiredRadiusUsers);
+        }
+
+        // Automatic Purge: Delete expired vouchers older than 30 days
+        $qPurge30 = @pg_query($pg, "
+            SELECT username FROM pacenet_vouchers 
+            WHERE status = 'expired' 
+              AND (
+                (expired_at IS NOT NULL AND expired_at < NOW() - INTERVAL '30 days')
+                OR (expired_at IS NULL AND COALESCE(last_seen, first_login, created_at) < NOW() - INTERVAL '30 days')
+              )
+            LIMIT 5000
+        ");
+        if ($qPurge30 && pg_num_rows($qPurge30) > 0) {
+            $purgeList = array();
+            while ($pRow = pg_fetch_assoc($qPurge30)) {
+                $purgeList[] = $pRow['username'];
+            }
+            $escPurge = "'" . implode("','", array_map('pg_escape_string', $purgeList)) . "'";
+            @pg_query($pg, "BEGIN");
+            @pg_query($pg, "DELETE FROM pacenet_vouchers WHERE username IN ($escPurge)");
+            @pg_query($pg, "DELETE FROM radcheck WHERE username IN ($escPurge)");
+            @pg_query($pg, "DELETE FROM radusergroup WHERE username IN ($escPurge)");
+            @pg_query($pg, "DELETE FROM radreply WHERE username IN ($escPurge)");
+            @pg_query($pg, "COMMIT");
+            $results['expired_30days_purged'] = count($purgeList);
         }
 
         @pg_close($pg);
