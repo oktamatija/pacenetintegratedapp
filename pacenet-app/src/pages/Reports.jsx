@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -7,15 +7,16 @@ import {
   RefreshCw, 
   ChevronLeft, 
   ChevronRight, 
-  PieChart, 
   Wifi, 
   Ticket, 
-  CheckCircle2, 
   Clock, 
   Copy, 
   Check, 
   Filter,
-  Server
+  Server,
+  Calendar,
+  CalendarDays,
+  BarChart3
 } from 'lucide-react';
 
 export default function Reports() {
@@ -27,6 +28,20 @@ export default function Reports() {
   const [selectedRouter, setSelectedRouter] = useState('all');
   const [copiedUser, setCopiedUser] = useState(null);
 
+  // Time-based filtering state
+  const [periodType, setPeriodType] = useState('daily'); // 'daily', 'weekly', 'monthly', 'yearly', 'all'
+  
+  // Datepicker values
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const currentMonth = useMemo(() => new Date().toISOString().slice(0, 7), []);
+  const currentYear = useMemo(() => new Date().getFullYear().toString(), []);
+
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
   const fetchReports = async (forceRefresh = false) => {
     setLoading(true);
     try {
@@ -35,8 +50,25 @@ export default function Reports() {
         limit: '25',
         router: selectedRouter,
         status: statusTab,
-        search
+        search,
+        period_type: periodType
       });
+
+      if (periodType === 'daily') {
+        q.set('date', selectedDate || today);
+      } else if (periodType === 'weekly') {
+        if (startDate && endDate) {
+          q.set('start_date', startDate);
+          q.set('end_date', endDate);
+        } else {
+          q.set('date', selectedDate || today);
+        }
+      } else if (periodType === 'monthly') {
+        q.set('month', selectedMonth || currentMonth);
+      } else if (periodType === 'yearly') {
+        q.set('year', selectedYear || currentYear);
+      }
+
       if (forceRefresh) {
         q.set('refresh', '1');
       }
@@ -54,7 +86,7 @@ export default function Reports() {
 
   useEffect(() => {
     fetchReports(false);
-  }, [page, statusTab, selectedRouter]);
+  }, [page, statusTab, selectedRouter, periodType, selectedDate, selectedMonth, selectedYear, startDate, endDate]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -69,6 +101,36 @@ export default function Reports() {
   const pagination = data?.pagination || {};
   const profileBreakdown = data?.profile_breakdown || [];
   const routers = data?.routers || [];
+  const chartData = data?.chart || null;
+
+  // Quick action helpers
+  const handleSetToday = () => {
+    setSelectedDate(today);
+    setStartDate('');
+    setEndDate('');
+    setPage(1);
+  };
+
+  const handleSetYesterday = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(d.toISOString().slice(0, 10));
+    setStartDate('');
+    setEndDate('');
+    setPage(1);
+  };
+
+  const handleSetThisMonth = () => {
+    setSelectedMonth(currentMonth);
+    setPage(1);
+  };
+
+  const handleSetLastMonth = () => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    setSelectedMonth(d.toISOString().slice(0, 7));
+    setPage(1);
+  };
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
@@ -86,9 +148,16 @@ export default function Reports() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `pacenet-report-${selectedRouter}-${statusTab}-${new Date().toISOString().slice(0, 10)}.csv`;
+    const periodTag = summary.period_label ? summary.period_label.replace(/\s+/g, '_') : periodType;
+    a.download = `pacenet-sales-${selectedRouter}-${periodTag}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
   };
+
+  // Calculate max for chart scale
+  const maxRevenue = useMemo(() => {
+    if (!chartData?.revenue_series || chartData.revenue_series.length === 0) return 1;
+    return Math.max(...chartData.revenue_series, 1);
+  }, [chartData]);
 
   return (
     <div>
@@ -99,14 +168,14 @@ export default function Reports() {
         justifyContent: 'space-between',
         flexWrap: 'wrap',
         gap: '12px',
-        marginBottom: '20px'
+        marginBottom: '16px'
       }}>
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            Laporan Voucher & Penjualan
+            Rekap Penjualan & Laporan
           </h2>
           <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
-            Monitoring multi-router real-time: omzet penjualan, voucher sedang terpakai, stok siap pakai, dan riwayat voucher kedaluwarsa.
+            Monitoring multi-router real-time: omzet penjualan per waktu, voucher sedang terpakai, stok siap pakai, dan riwayat voucher kedaluwarsa.
           </p>
         </div>
 
@@ -166,6 +235,196 @@ export default function Reports() {
         </div>
       </div>
 
+      {/* Time-Based Period Selector & Datepicker Control Card */}
+      <div className="glass-card" style={{ marginBottom: '20px', padding: '14px 18px' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '14px'
+        }}>
+          {/* Period Tabs: Per-Hari, Per-Minggu, Per-Bulan, Per-Tahun, Semua */}
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px', marginRight: '4px' }}>
+              <Calendar size={14} color="var(--accent-cyan)" /> Periode:
+            </span>
+            <button
+              className={`btn btn-sm ${periodType === 'daily' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => { setPeriodType('daily'); setPage(1); }}
+            >
+              <span>Per-Hari</span>
+            </button>
+            <button
+              className={`btn btn-sm ${periodType === 'weekly' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => { setPeriodType('weekly'); setPage(1); }}
+            >
+              <span>Per-Minggu</span>
+            </button>
+            <button
+              className={`btn btn-sm ${periodType === 'monthly' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => { setPeriodType('monthly'); setPage(1); }}
+            >
+              <span>Per-Bulan</span>
+            </button>
+            <button
+              className={`btn btn-sm ${periodType === 'yearly' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => { setPeriodType('yearly'); setPage(1); }}
+            >
+              <span>Per-Tahun</span>
+            </button>
+            <button
+              className={`btn btn-sm ${periodType === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => { setPeriodType('all'); setPage(1); }}
+            >
+              <span>Semua Waktu</span>
+            </button>
+          </div>
+
+          {/* Interactive Datepicker Controls based on selected period */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {periodType === 'daily' && (
+              <>
+                <input 
+                  type="date" 
+                  value={selectedDate}
+                  onChange={e => { setSelectedDate(e.target.value); setPage(1); }}
+                  style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    color: '#fff',
+                    padding: '5px 10px',
+                    fontSize: '12.5px',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                  title="Pilih tanggal penjualan"
+                />
+                <button className="btn btn-secondary btn-sm" onClick={handleSetToday} title="Pilih Hari Ini">
+                  Hari Ini
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={handleSetYesterday} title="Pilih Kemarin">
+                  Kemarin
+                </button>
+              </>
+            )}
+
+            {periodType === 'weekly' && (
+              <>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Pilih Tanggal Acuan:</span>
+                <input 
+                  type="date" 
+                  value={selectedDate}
+                  onChange={e => { setSelectedDate(e.target.value); setStartDate(''); setEndDate(''); setPage(1); }}
+                  style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    color: '#fff',
+                    padding: '5px 10px',
+                    fontSize: '12.5px',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                  title="Pilih tanggal dalam minggu yang diinginkan"
+                />
+                <button className="btn btn-secondary btn-sm" onClick={handleSetToday} title="Minggu Berjalan">
+                  Minggu Ini
+                </button>
+              </>
+            )}
+
+            {periodType === 'monthly' && (
+              <>
+                <input 
+                  type="month" 
+                  value={selectedMonth}
+                  onChange={e => { setSelectedMonth(e.target.value); setPage(1); }}
+                  style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    color: '#fff',
+                    padding: '5px 10px',
+                    fontSize: '12.5px',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                  title="Pilih bulan penjualan"
+                />
+                <button className="btn btn-secondary btn-sm" onClick={handleSetThisMonth} title="Bulan Berjalan">
+                  Bulan Ini
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={handleSetLastMonth} title="Bulan Lalu">
+                  Bulan Lalu
+                </button>
+              </>
+            )}
+
+            {periodType === 'yearly' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Tahun:</span>
+                <select 
+                  value={selectedYear}
+                  onChange={e => { setSelectedYear(e.target.value); setPage(1); }}
+                  style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    color: '#fff',
+                    padding: '5px 12px',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {['2027', '2026', '2025', '2024', '2023'].map(y => (
+                    <option key={y} value={y} style={{ background: '#111722', color: '#fff' }}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {periodType === 'all' && (
+              <span style={{ fontSize: '12px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                ✓ Akumulasi Sepanjang Waktu
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Active Period Label Tag */}
+        <div style={{ 
+          marginTop: '10px', 
+          paddingTop: '10px', 
+          borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '12px',
+          color: 'var(--text-secondary)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>Menampilkan data untuk periode:</span>
+            <strong style={{ color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>
+              {summary.period_label || 'Semua Waktu'}
+            </strong>
+          </div>
+          {periodType !== 'all' && summary.all_time_revenue_formatted && (
+            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+              Akumulasi All-Time: <strong style={{ color: '#fff' }}>{summary.all_time_revenue_formatted}</strong> ({summary.all_time_sales_count || 0}x)
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* 4 Status KPI Cards */}
       <div style={{
         display: 'grid',
@@ -173,17 +432,21 @@ export default function Reports() {
         gap: '16px',
         marginBottom: '20px'
       }}>
-        {/* KPI 1: Omzet Penjualan */}
+        {/* KPI 1: Omzet Penjualan (sesuai periode terpilih) */}
         <div className="glass-card kpi-card emerald" style={{ margin: 0 }}>
           <div className="kpi-info">
             <h3 style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 700 }}>
-              Total Omzet Terjual
+              {periodType === 'daily' && 'Omzet Hari Ini'}
+              {periodType === 'weekly' && 'Omzet Minggu Ini'}
+              {periodType === 'monthly' && 'Omzet Bulan Ini'}
+              {periodType === 'yearly' && 'Omzet Tahun Ini'}
+              {periodType === 'all' && 'Total Omzet Terjual'}
             </h3>
             <div className="kpi-value" style={{ color: 'var(--accent-emerald)', fontSize: '22px', fontWeight: 800 }}>
               {summary.total_revenue_formatted || 'Rp 0'}
             </div>
             <div className="kpi-sub" style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-              Akumulasi voucher aktif & selesai
+              {summary.period_sales_count || 0} voucher terjual pada periode ini
             </div>
           </div>
           <div className="kpi-icon" style={{ color: 'var(--accent-emerald)' }}>
@@ -211,7 +474,7 @@ export default function Reports() {
               {(summary.count_active || 0).toLocaleString()} <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>user</span>
             </div>
             <div className="kpi-sub" style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-              Sinkron dengan status bar controller
+              Sesi aktif real-time di router
             </div>
           </div>
           <div className="kpi-icon" style={{ color: 'var(--accent-cyan)' }}>
@@ -238,7 +501,7 @@ export default function Reports() {
               {(summary.count_unused || 0).toLocaleString()} <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>voucher</span>
             </div>
             <div className="kpi-sub" style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-              Potensi: {summary.potential_unused_revenue_formatted || 'Rp 0'}
+              Stok siap jual: {summary.potential_unused_revenue_formatted || 'Rp 0'}
             </div>
           </div>
           <div className="kpi-icon" style={{ color: 'var(--accent-amber)' }}>
@@ -265,7 +528,7 @@ export default function Reports() {
               {(summary.count_expired || 0).toLocaleString()} <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>voucher</span>
             </div>
             <div className="kpi-sub" style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-              Masa aktif tuntas & kedaluwarsa
+              {periodType !== 'all' ? 'Kedaluwarsa pada periode ini' : 'Masa aktif tuntas & kedaluwarsa'}
             </div>
           </div>
           <div className="kpi-icon" style={{ color: 'var(--accent-purple)' }}>
@@ -274,7 +537,82 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Segmented Filter Pills */}
+      {/* Visual Sales Trend Bar Chart (if chart data exists and period is not all) */}
+      {chartData && chartData.categories && chartData.categories.length > 0 && periodType !== 'all' && (
+        <div className="glass-card" style={{ marginBottom: '20px', padding: '18px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <h3 style={{ fontSize: '14.5px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BarChart3 size={16} color="var(--accent-emerald)" />
+                Distribusi Pendapatan Penjualan ({summary.period_label})
+              </h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Tren volume penjualan voucher per interval waktu dalam periode terpilih
+              </p>
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--accent-emerald)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+              Total: {summary.total_revenue_formatted}
+            </div>
+          </div>
+
+          <div style={{ 
+            height: '140px', 
+            width: '100%', 
+            overflowX: 'auto', 
+            display: 'flex', 
+            alignItems: 'flex-end', 
+            gap: '8px', 
+            paddingBottom: '22px', 
+            paddingTop: '10px' 
+          }}>
+            {chartData.categories.map((cat, idx) => {
+              const rev = chartData.revenue_series[idx] || 0;
+              const count = chartData.count_series[idx] || 0;
+              const barHeight = Math.max(Math.round((rev / maxRevenue) * 90), rev > 0 ? 6 : 2);
+              const isZero = rev === 0;
+
+              return (
+                <div 
+                  key={idx} 
+                  style={{ 
+                    flex: 1, 
+                    minWidth: '20px', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    height: '100%', 
+                    justifyContent: 'flex-end',
+                    position: 'relative'
+                  }}
+                  title={`${cat}: Rp ${rev.toLocaleString('id-ID')} (${count} voucher)`}
+                >
+                  <div style={{ 
+                    width: '100%', 
+                    maxWidth: '32px',
+                    height: `${barHeight}px`, 
+                    background: isZero ? 'rgba(255, 255, 255, 0.06)' : 'linear-gradient(180deg, var(--accent-emerald) 0%, #059669 100%)', 
+                    borderRadius: '3px 3px 0 0',
+                    transition: 'all 0.3s ease',
+                    boxShadow: isZero ? 'none' : '0 0 8px rgba(16, 185, 129, 0.3)'
+                  }} />
+                  <div style={{ 
+                    fontSize: '9.5px', 
+                    color: isZero ? 'var(--text-muted)' : '#fff', 
+                    marginTop: '6px', 
+                    whiteSpace: 'nowrap',
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: isZero ? 400 : 600
+                  }}>
+                    {cat}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Segmented Filter Pills (All, Active, Unused, Expired) */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -296,7 +634,7 @@ export default function Reports() {
             fontSize: '11px',
             fontFamily: 'var(--font-mono)' 
           }}>
-            {(summary.total_vouchers || 0).toLocaleString()}
+            {(pagination.total || 0).toLocaleString()}
           </span>
         </button>
 
@@ -375,10 +713,13 @@ export default function Reports() {
       </div>
 
       {/* Profile Breakdown Pills */}
-      {profileBreakdown.length > 0 && statusTab === 'all' && (
+      {profileBreakdown.length > 0 && (
         <div className="glass-card" style={{ marginBottom: '20px', padding: '14px 18px' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Distribusi Paket Terjual
+          <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', justifyContent: 'space-between' }}>
+            <span>Distribusi Paket Terjual ({summary.period_label || 'Semua Waktu'})</span>
+            <span style={{ color: 'var(--accent-emerald)' }}>
+              {summary.total_revenue_formatted}
+            </span>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             {profileBreakdown.map((p, idx) => (
@@ -422,8 +763,8 @@ export default function Reports() {
             <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>
               {statusTab === 'active' && 'Daftar Voucher Sementara Terpakai (Sesi Aktif)'}
               {statusTab === 'unused' && 'Daftar Stok Voucher Belum Terpakai (Siap Jual)'}
-              {statusTab === 'expired' && 'Daftar Voucher Habis Terpakai (Kedaluwarsa)'}
-              {statusTab === 'all' && 'Semua Transaksi & Status Voucher'}
+              {statusTab === 'expired' && `Daftar Voucher Habis Terpakai (${summary.period_label || 'Semua Waktu'})`}
+              {statusTab === 'all' && `Semua Transaksi & Status Voucher (${summary.period_label || 'Semua Waktu'})`}
             </h3>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
               Menampilkan {pagination.total ? ((page - 1) * 25 + 1) : 0} - {Math.min(page * 25, pagination.total || 0)} dari {pagination.total || 0} item
@@ -466,7 +807,7 @@ export default function Reports() {
               ) : vouchers.length === 0 ? (
                 <tr>
                   <td colSpan={selectedRouter === 'all' ? 8 : 7} style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--text-muted)' }}>
-                    Tidak ada voucher dengan filter "{statusTab}" {search ? `dan kata kunci "${search}"` : ''}.
+                    Tidak ada voucher dengan filter "{statusTab}" pada periode ini {search ? `dan kata kunci "${search}"` : ''}.
                   </td>
                 </tr>
               ) : (
