@@ -1,0 +1,28 @@
+[
+    {
+        "id": "olt-01",
+        "type": "OLT",
+        "name": "OLT HSGQ EPON\/GPON Core",
+        "sn": "HSGQ20268899",
+        "mac": "E0:67:B3:11:22:33",
+        "vpn_ip": "10.10.10.50",
+        "web_port": "80",
+        "location": "POP Hamadi",
+        "status": "approved",
+        "registered_at": "2026-09-12 12:14:30",
+        "approved_at": "2026-09-12 12:14:30"
+    },
+    {
+        "id": "ont-01",
+        "type": "ONT",
+        "name": "ONT ZTE F609 Klien Hamadi",
+        "sn": "ZTEG98765432",
+        "mac": "74:85:2A:44:55:66",
+        "vpn_ip": "10.10.10.101",
+        "web_port": "80",
+        "location": "Rumah Pelanggan #101",
+        "status": "approved",
+        "registered_at": "2026-09-12 12:14:30",
+        "approved_at": "2026-09-12 12:15:45"
+    }
+]

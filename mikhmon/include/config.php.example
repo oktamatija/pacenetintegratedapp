@@ -1,0 +1,18 @@
+<?php 
+if(substr($_SERVER["REQUEST_URI"], -10) == "config.php"){header("Location:./");}; 
+$data['mikhmon'] = array ('1'=>'mikhmon<|<admin','mikhmon>|>gKpiaGVn');
+
+// Example Router Configuration Template
+// $data['Router-Session'] = array (
+//   '1' => 'Router-Session!10.10.10.3',       // IP / VPN WireGuard Address
+//   'Router-Session@|@username',              // MikroTik API User
+//   'Router-Session#|#encrypted_pass',        // MikroTik API Password
+//   'Router-Session%Router Name',             // Display Name
+//   'Router-Session^hotspot.domain',          // DNS Name
+//   'Router-Session&Rp',                      // Currency
+//   'Router-Session*10',
+//   'Router-Session(1',
+//   'Router-Session)',
+//   'Router-Session=10',
+//   'Router-Session@!@disable'
+// );

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="2; url=$(link-redirect)">
+    <title>Login Berhasil - Pacenet Billing System</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a2a6c, #2b5876);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            border-radius: 16px;
+            padding: 30px 25px;
+            max-width: 380px;
+            width: 100%;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .icon-success {
+            font-size: 50px;
+            color: #2ed573;
+            margin-bottom: 15px;
+        }
+        h2 {
+            margin: 0 0 10px;
+            color: #1a2a6c;
+            font-size: 22px;
+        }
+        p {
+            font-size: 14px;
+            color: #666;
+            margin: 5px 0 20px;
+        }
+        .btn-continue {
+            display: inline-block;
+            background: #1a2a6c;
+            color: #fff;
+            padding: 10px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 14px;
+        }
+    </style>
+    <script>
+        var dst = "$(link-redirect)";
+        if (!dst || dst.indexOf("http") !== 0) {
+            dst = "$(link-orig)";
+        }
+        if (!dst || dst.indexOf("http") !== 0) {
+            dst = "http://www.google.com";
+        }
+        setTimeout(function() {
+            window.location.href = dst;
+        }, 1500);
+    </script>
+</head>
+<body>
+    <div class="card">
+        <div class="icon-success">&#10004;</div>
+        <h2>Login Berhasil!</h2>
+        <p>Anda telah terhubung ke internet. Selamat berselancar!</p>
+        <a href="$(link-redirect)" class="btn-continue">Lanjutkan Berselancar</a>
+    </div>
+</body>
+</html>

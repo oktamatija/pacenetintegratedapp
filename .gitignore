@@ -1,0 +1,42 @@
+# Credentials & Deployment Secrets
+deploy_config.py
+.env
+*.env
+.env.local
+*.local
+
+# Router Connection Secrets (Actual config with passwords)
+mikhmon/include/config.php
+
+# Backups, Archives, & System Dumps
+vps_backup/
+mikrotik_backup/
+server_configs/
+*.backup
+*.rsc
+*.tar.gz
+*.zip
+
+# Dependencies & Build Output
+pacenet-app/node_modules/
+pacenet-app/dist/
+pacenet-app/.vite/
+node_modules/
+dist/
+
+# Python Cache & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Temporary files & Logs
+*.log
+*.tmp
+*.bak
+.tempmediaStorage/
+.user_uploaded/
+.DS_Store
+Thumbs.db
+Desktop.ini

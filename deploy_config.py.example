@@ -1,0 +1,6 @@
+# Deployment Configuration Template
+# Copy this file to deploy_config.py and fill in your VPS connection details:
+VPS_HOST = "your-vps-ip"
+VPS_PORT = 22
+VPS_USER = "root"
+VPS_PASS = "your-vps-root-password"
