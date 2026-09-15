@@ -18,6 +18,8 @@ import {
 export default function Vouchers({ onNavigate, isReadOnly }) {
   const [users, setUsers] = useState([]);
   const [profiles, setProfiles] = useState([]);
+  const [routers, setRouters] = useState([]);
+  const [selectedRouter, setSelectedRouter] = useState('all');
   const [total, setTotal] = useState(0);
   const [totalAll, setTotalAll] = useState(0);
   const [page, setPage] = useState(1);
@@ -37,6 +39,7 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
         limit: limit.toString(),
         search,
         profile: selectedProfile,
+        router: selectedRouter,
         refresh: refresh ? '1' : '0'
       });
       const res = await fetch(`/api/vouchers.php?${q.toString()}`);
@@ -44,6 +47,7 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
       if (json.success) {
         setUsers(json.data.users || []);
         setProfiles(json.data.profiles || []);
+        setRouters(json.data.routers || []);
         setTotal(json.data.total || 0);
         setTotalAll(json.data.total_all || 0);
         setTotalPages(json.data.total_pages || 1);
@@ -57,7 +61,7 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
 
   useEffect(() => {
     fetchVouchers();
-  }, [page, limit, selectedProfile]);
+  }, [page, limit, selectedProfile, selectedRouter]);
 
   // Debounced search
   useEffect(() => {
@@ -79,7 +83,7 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
       const res = await fetch('/api/vouchers.php?action=toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: u.id, disabled: !u.disabled })
+        body: JSON.stringify({ id: u.id, router: u.router_session, disabled: !u.disabled })
       });
       const json = await res.json();
       if (json.success) {
@@ -106,7 +110,7 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
       const res = await fetch('/api/vouchers.php?action=delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: u.id })
+        body: JSON.stringify({ id: u.id, router: u.router_session })
       });
       const json = await res.json();
       if (json.success) {
@@ -133,7 +137,7 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
       const res = await fetch('/api/vouchers.php?action=reset_counters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: u.id })
+        body: JSON.stringify({ id: u.id, router: u.router_session })
       });
       const json = await res.json();
       if (json.success) {
@@ -203,8 +207,25 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
             />
           </div>
 
-          {/* Profile Filter */}
+          {/* Router & Profile Filter */}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              className="filter-select"
+              value={selectedRouter}
+              onChange={e => {
+                setSelectedRouter(e.target.value);
+                setPage(1);
+              }}
+              style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}
+            >
+              <option value="all">Semua Router MikroTik</option>
+              {routers.map(r => (
+                <option key={r.session} value={r.session}>
+                  {r.name} ({r.user_count ? r.user_count.toLocaleString() : 0} voucher)
+                </option>
+              ))}
+            </select>
+
             <select
               className="filter-select"
               value={selectedProfile}
@@ -254,6 +275,7 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
             <thead>
               <tr>
                 <th style={{ width: '50px' }}>Status</th>
+                <th>Router</th>
                 <th>Username / Voucher</th>
                 <th>Password</th>
                 <th>Profil</th>
@@ -266,28 +288,33 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
             <tbody>
               {loading && users.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px' }}>
                     <RefreshCw size={24} className="spin-anim" style={{ margin: '0 auto 10px', color: 'var(--accent-cyan)' }} />
-                    <p style={{ color: 'var(--text-muted)' }}>Memuat data ribuan voucher dari MikroTik...</p>
+                    <p style={{ color: 'var(--text-muted)' }}>Memuat data ribuan voucher dari seluruh router MikroTik...</p>
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                    Tidak ada voucher yang cocok dengan filter.
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                    Tidak ada voucher yang cocok dengan filter router / profil.
                   </td>
                 </tr>
               ) : (
                 users.map((u) => {
                   const isBusy = actionLoading === u.id;
                   return (
-                    <tr key={u.id} style={{ opacity: isBusy ? 0.5 : 1 }}>
+                    <tr key={`${u.router_session || 'r'}_${u.id}`} style={{ opacity: isBusy ? 0.5 : 1 }}>
                       <td>
                         {u.disabled ? (
                           <XCircle size={17} color="var(--accent-rose)" title="Nonaktif (Disabled)" />
                         ) : (
                           <CheckCircle2 size={17} color="var(--accent-emerald)" title="Aktif" />
                         )}
+                      </td>
+                      <td>
+                        <span className="tag tag-blue" style={{ fontSize: '11px', textTransform: 'capitalize' }}>
+                          {u.router_name || u.router_session || 'Master'}
+                        </span>
                       </td>
                       <td style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', color: '#fff' }}>
                         {u.name}

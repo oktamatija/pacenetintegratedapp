@@ -21,6 +21,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS
 
 error_reporting(0);
 ini_set('display_errors', '0');
+date_default_timezone_set('Asia/Jayapura');
 
 require_once(__DIR__ . '/../lib/routeros_api.class.php');
 require_once(__DIR__ . '/../lib/formatbytesbites.php');
@@ -337,4 +338,55 @@ function formatDurationHuman($input, $lang = 'id') {
     if (!$parsed['valid']) return (string)$input;
     return ($lang === 'en') ? $parsed['human_en'] : $parsed['human_id'];
 }
+
+/**
+ * Robustly parses MikroTik hotspot expiration timestamps from user comments.
+ * Supports:
+ * - mon/dd/yyyy hh:mm:ss (e.g. sep/16/2026 06:16:21)
+ * - yyyy-mm-dd hh:mm:ss (e.g. 2026-09-16 07:19:10)
+ * - dd/mm/yyyy hh:mm:ss (e.g. 16/09/2026 07:19:10)
+ * Returns integer UNIX timestamp or false if not an expiration comment.
+ */
+function parseHotspotExpirationTimestamp($comment) {
+    $comment = trim($comment);
+    if (empty($comment)) return false;
+
+    // 1. mon/dd/yyyy hh:mm:ss (e.g. sep/16/2026 06:16:21)
+    if (preg_match('/([a-z]{3})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}:\d{2}:\d{2})/i', $comment, $m)) {
+        $months = array('jan'=>1,'feb'=>2,'mar'=>3,'apr'=>4,'may'=>5,'jun'=>6,'jul'=>7,'aug'=>8,'sep'=>9,'oct'=>10,'nov'=>11,'dec'=>12);
+        $mIdx = $months[strtolower($m[1])] ?? 1;
+        $d = intval($m[2]);
+        $y = intval($m[3]);
+        $time = $m[4];
+        $ts = strtotime(sprintf('%04d-%02d-%02d %s', $y, $mIdx, $d, $time));
+        return $ts !== false ? $ts : false;
+    }
+
+    // 2. yyyy-mm-dd hh:mm:ss (e.g. 2026-09-16 07:19:10)
+    if (preg_match('/(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}:\d{2}:\d{2})/', $comment, $m)) {
+        $ts = strtotime($m[0]);
+        return $ts !== false ? $ts : false;
+    }
+
+    // 3. dd/mm/yyyy hh:mm:ss
+    if (preg_match('/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}:\d{2}:\d{2})/', $comment, $m)) {
+        $d = intval($m[1]);
+        $mIdx = intval($m[2]);
+        $y = intval($m[3]);
+        $time = $m[4];
+        $ts = strtotime(sprintf('%04d-%02d-%02d %s', $y, $mIdx, $d, $time));
+        return $ts !== false ? $ts : false;
+    }
+
+    // 4. Fallback if standard parsable string (excluding batch codes like vc-xxx)
+    if (strpos($comment, 'vc-') === false && strpos($comment, 'up-') === false && strpos($comment, 'pn-') === false) {
+        $ts = strtotime($comment);
+        if ($ts !== false && $ts > 946684800) { // Year 2000+
+            return $ts;
+        }
+    }
+
+    return false;
+}
+
 

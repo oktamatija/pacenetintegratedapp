@@ -181,11 +181,7 @@ if ($action === 'check' || ($method === 'GET' && empty($action) && isset($_GET['
                 $statusLabel = 'SEDANG DIGUNAKAN (User Aktif Online)';
             } elseif ($hasUser) {
                 $comment = $userObj['comment'] ?? '';
-                $expTs = false;
-                if (preg_match('/([a-z]{3}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2}:\d{2})/i', $comment, $m) ||
-                    preg_match('/(\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2}:\d{2})/i', $comment, $m)) {
-                    $expTs = strtotime($m[1] . ' ' . $m[2]);
-                }
+                $expTs = parseHotspotExpirationTimestamp($comment);
 
                 if ($expTs !== false && time() >= $expTs) {
                     $status = 'expired';

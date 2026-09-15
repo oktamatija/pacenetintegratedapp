@@ -171,15 +171,12 @@ foreach ($routerSessions as $rSession) {
 
             if (empty($uName) || $uName === 'default-encryption') continue;
 
-            // Check if comment is an expiration timestamp (e.g. sep/14/2026 19:59:17 or 14/09/2026 19:59:17)
-            if (preg_match('/([a-z]{3}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2}:\d{2})/i', $comment, $m) ||
-                preg_match('/(\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2}:\d{2})/i', $comment, $m)) {
-                
-                $expTs = strtotime($m[1] . ' ' . $m[2]);
-                if ($expTs !== false && $routerTimestamp >= $expTs) {
-                    // USER HAS EXPIRED!
-                    $api->comm('/ip/hotspot/user/remove', array('.id' => $uid));
-                    $results['mikrotik_expired_purged']++;
+            // Robust expiration timestamp check via parseHotspotExpirationTimestamp
+            $expTs = parseHotspotExpirationTimestamp($comment);
+            if ($expTs !== false && $routerTimestamp >= $expTs) {
+                // USER HAS EXPIRED!
+                $api->comm('/ip/hotspot/user/remove', array('.id' => $uid));
+                $results['mikrotik_expired_purged']++;
 
                     // Disconnect active
                     $act = $api->comm('/ip/hotspot/active/print', array('?user' => $uName));
@@ -205,7 +202,6 @@ foreach ($routerSessions as $rSession) {
                 }
             }
         }
-    }
 
     $api->disconnect();
 }

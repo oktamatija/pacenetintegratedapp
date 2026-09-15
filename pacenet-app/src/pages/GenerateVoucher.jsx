@@ -4,6 +4,8 @@ import { parseBilingualDuration } from '../utils/durationParser';
 
 export default function GenerateVoucher({ onNavigate, setGeneratedForPrint, isReadOnly }) {
   const [profiles, setProfiles] = useState([]);
+  const [routers, setRouters] = useState([]);
+  const [targetRouter, setTargetRouter] = useState('all');
   const [loadingProfiles, setLoadingProfiles] = useState(true);
 
   // Form State
@@ -23,15 +25,20 @@ export default function GenerateVoucher({ onNavigate, setGeneratedForPrint, isRe
   const [error, setError] = useState('');
 
 
-  // Fetch available profiles
+  // Fetch available profiles & routers
   useEffect(() => {
     fetch('/api/vouchers.php?action=list&limit=1')
       .then(res => res.json())
       .then(json => {
-        if (json.success && json.data.profiles) {
-          setProfiles(json.data.profiles);
-          if (json.data.profiles.length > 0 && !profile) {
-            setProfile(json.data.profiles[0].name);
+        if (json.success) {
+          if (json.data.profiles) {
+            setProfiles(json.data.profiles);
+            if (json.data.profiles.length > 0 && !profile) {
+              setProfile(json.data.profiles[0].name);
+            }
+          }
+          if (json.data.routers) {
+            setRouters(json.data.routers);
           }
         }
       })
@@ -54,6 +61,7 @@ export default function GenerateVoucher({ onNavigate, setGeneratedForPrint, isRe
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          target_router: targetRouter,
           qty: Number(qty),
           server,
           user_mode: userMode,
@@ -154,6 +162,31 @@ export default function GenerateVoucher({ onNavigate, setGeneratedForPrint, isRe
                   <option value="up">Username = Password (Satu Kode)</option>
                   <option value="vc">Username & Password Berbeda</option>
                 </select>
+              </div>
+
+              {/* Target Router */}
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                  Router Tujuan (Penyimpanan Voucher)
+                </label>
+                <select
+                  className="filter-select"
+                  style={{ width: '100%', borderColor: 'rgba(56, 189, 248, 0.4)', color: 'var(--accent-cyan)' }}
+                  value={targetRouter}
+                  onChange={e => setTargetRouter(e.target.value)}
+                >
+                  <option value="all">⚡ Semua Router (Sinkronisasi Seluruh Node)</option>
+                  {routers.map(r => (
+                    <option key={r.session} value={r.session}>
+                      {r.name} ({r.session})
+                    </option>
+                  ))}
+                </select>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
+                  {targetRouter === 'all' 
+                    ? 'Voucher otomatis di-inject ke seluruh router online & database FreeRADIUS.' 
+                    : `Voucher hanya di-inject ke router ${targetRouter}.`}
+                </span>
               </div>
 
               {/* Profil Paket */}

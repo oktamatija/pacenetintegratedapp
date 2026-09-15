@@ -430,12 +430,8 @@ foreach ($routersData as $rSession => $rBundle) {
         $price = $profileLookup[$pName]['price'] ?? 0;
         $validity = $profileLookup[$pName]['validity'] ?? ($u['limit-uptime'] ?? '');
 
-        // Check expiration in comment
-        $expTs = false;
-        if (preg_match('/([a-z]{3}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2}:\d{2})/i', $comment, $m) ||
-            preg_match('/(\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2}:\d{2})/i', $comment, $m)) {
-            $expTs = strtotime($m[1] . ' ' . $m[2]);
-        }
+        // Robust expiration timestamp check via parseHotspotExpirationTimestamp
+        $expTs = parseHotspotExpirationTimestamp($comment);
 
         if ($expTs !== false) {
             if ($routerTs >= $expTs) {
@@ -494,8 +490,33 @@ foreach ($routersData as $rSession => $rBundle) {
                     'in_period' => true
                 );
             }
-        } elseif ($uptime === '0s' || empty($uptime)) {
-            // Belum Terpakai
+        } elseif ($uptime !== '0s' && !empty($uptime)) {
+            // Sesi aktif offline (memiliki catatan pemakaian waktu berjalan)
+            $activeList[$itemKey] = array(
+                'id' => $u['.id'] ?? ('act_off_' . $itemKey),
+                'router_session' => $rSession,
+                'router_name' => $rName,
+                'username' => $uName,
+                'password' => $u['password'] ?? $uName,
+                'profile' => $pName,
+                'price' => $price,
+                'price_formatted' => 'Rp ' . number_format($price, 0, ',', '.'),
+                'status' => 'active',
+                'status_label' => 'Sementara Terpakai',
+                'ip' => '-',
+                'mac' => '-',
+                'uptime' => $uptime,
+                'session_left' => $validity ?: ($u['limit-uptime'] ?? '-'),
+                'bytes_total' => intval($u['bytes-in'] ?? 0) + intval($u['bytes-out'] ?? 0),
+                'bytes_human' => formatBytesReadable(intval($u['bytes-in'] ?? 0) + intval($u['bytes-out'] ?? 0)),
+                'validity' => $validity,
+                'batch' => $comment,
+                'date' => $curDate,
+                'time' => $curTime,
+                'in_period' => true
+            );
+        } else {
+            // Belum Terpakai (Stock Siap Pakai)
             $batchDate = '-';
             if (preg_match('/(\d{2})\.(\d{2})\.(\d{2})/', $comment, $bm)) {
                 $batchDate = '20' . $bm[3] . '-' . $bm[2] . '-' . $bm[1];

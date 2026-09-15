@@ -59,39 +59,53 @@ function generateRandomString($length, $type) {
     return $res;
 }
 
-$conn = connectMikrotik('Rumah-DOLPHIN', 10);
-if (!$conn) {
-    jsonResponse(false, null, 'Gagal terhubung ke master MikroTik (Rumah-DOLPHIN)', 500);
+$targetRouter = trim($body['target_router'] ?? ($body['router'] ?? 'all'));
+
+$targetRouters = array();
+if ($targetRouter === 'all') {
+    foreach ($data as $sName => $sCfg) {
+        if ($sName !== 'mikhmon' && !empty($sName) && strpos($sName, 'new-') !== 0 && !empty($sCfg[1])) {
+            $targetRouters[] = $sName;
+        }
+    }
+} elseif (isset($data[$targetRouter])) {
+    $targetRouters[] = $targetRouter;
+} else {
+    $targetRouters[] = 'Rumah-DOLPHIN';
 }
 
-$api = $conn['api'];
-
-// Get profile details (price, validity)
+// 1. Get profile details from first connectable router
 $price = '';
 $validity = '';
-$profDetails = $api->comm('/ip/hotspot/user/profile/print', array('?name' => $profile));
-if (!empty($profDetails[0])) {
-    $onLogin = $profDetails[0]['on-login'] ?? '';
-    if (!empty($onLogin)) {
-        $parts = explode(',', $onLogin);
-        if (isset($parts[2])) $price = trim($parts[2]);
-        if (isset($parts[3])) $validity = trim($parts[3]);
+$primarySession = $targetRouters[0] ?? 'Rumah-DOLPHIN';
+
+foreach ($targetRouters as $sName) {
+    $conn = connectMikrotik($sName, 5);
+    if ($conn) {
+        $primarySession = $sName;
+        $profDetails = $conn['api']->comm('/ip/hotspot/user/profile/print', array('?name' => $profile));
+        if (!empty($profDetails[0])) {
+            $onLogin = $profDetails[0]['on-login'] ?? '';
+            if (!empty($onLogin)) {
+                $parts = explode(',', $onLogin);
+                if (isset($parts[2])) $price = trim($parts[2]);
+                if (isset($parts[3])) $validity = trim($parts[3]);
+            }
+        }
+        $conn['api']->disconnect();
+        break;
     }
 }
 
 // Normalize validity if present
 $normValidity = normalizeMikrotikDuration($validity, $validity);
 
+// Generate voucher codes
 $createdList = array();
 $existingUsers = array();
 
-// Quick check existing
-$currUsers = $api->comm('/ip/hotspot/user/print', array('.proplist' => 'name'));
-if (is_array($currUsers)) {
-    foreach ($currUsers as $cu) {
-        if (!empty($cu['name'])) $existingUsers[$cu['name']] = true;
-    }
-}
+$dnsname = explode('^', $data[$primarySession][5] ?? '')[1] ?? 'hotspot.yunus';
+$hotspotname = explode('%', $data[$primarySession][4] ?? '')[1] ?? 'PACENET HOTSPOT';
 
 for ($i = 0; $i < $qty; $i++) {
     $attempt = 0;
@@ -107,30 +121,6 @@ for ($i = 0; $i < $qty; $i++) {
     } else {
         $upass = generateRandomString($nameLength, $charType);
     }
-
-    $addParams = array(
-        'server' => $server,
-        'name' => $uname,
-        'password' => $upass,
-        'profile' => $profile,
-        'comment' => $comment
-    );
-
-    // Apply normalized limit-uptime
-    if (!empty($timelimit)) {
-        $addParams['limit-uptime'] = $timelimit;
-    } elseif (!empty($normValidity)) {
-        $addParams['limit-uptime'] = $normValidity;
-    }
-
-    if (!empty($datalimit)) {
-        $addParams['limit-bytes-total'] = $datalimit;
-    }
-
-    $api->comm('/ip/hotspot/user/add', $addParams);
-
-    $dnsname = explode('^', $data['Rumah-DOLPHIN'][5] ?? '')[1] ?? 'hotspot.yunus';
-    $hotspotname = explode('%', $data['Rumah-DOLPHIN'][4] ?? '')[1] ?? 'PACENET HAMADI';
 
     $createdList[] = array(
         'username' => $uname,
@@ -149,7 +139,43 @@ for ($i = 0; $i < $qty; $i++) {
     );
 }
 
-$api->disconnect();
+// 2. Push generated users to target router(s)
+$connectedCount = 0;
+foreach ($targetRouters as $sName) {
+    $conn = connectMikrotik($sName, 5);
+    if (!$conn) continue;
+
+    $api = $conn['api'];
+    $connectedCount++;
+
+    foreach ($createdList as $cu) {
+        $addParams = array(
+            'server' => $server,
+            'name' => $cu['name'],
+            'password' => $cu['password'],
+            'profile' => $profile,
+            'comment' => $comment
+        );
+
+        if (!empty($timelimit)) {
+            $addParams['limit-uptime'] = $timelimit;
+        } elseif (!empty($normValidity)) {
+            $addParams['limit-uptime'] = $normValidity;
+        }
+
+        if (!empty($datalimit)) {
+            $addParams['limit-bytes-total'] = $datalimit;
+        }
+
+        $api->comm('/ip/hotspot/user/add', $addParams);
+    }
+
+    $api->disconnect();
+}
+
+if ($connectedCount === 0) {
+    jsonResponse(false, null, 'Gagal terhubung ke router MikroTik tujuan', 500);
+}
 
 // Synchronize newly generated vouchers to PostgreSQL FreeRADIUS database
 if (function_exists('pg_connect')) {
