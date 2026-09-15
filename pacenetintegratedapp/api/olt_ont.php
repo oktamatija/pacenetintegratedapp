@@ -6,7 +6,7 @@
 require_once(__DIR__ . '/common.php');
 checkAdminAuth(true);
 
-$dataFile = '/var/www/mikhmon/data/olt_ont_devices.json';
+$dataFile = '/var/www/pacenetintegratedapp/data/olt_ont_devices.json';
 if (!file_exists(dirname($dataFile))) {
     $dataFile = __DIR__ . '/../data/olt_ont_devices.json';
 }

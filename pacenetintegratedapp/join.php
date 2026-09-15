@@ -6,8 +6,8 @@
 header("Access-Control-Allow-Origin: *");
 error_reporting(0);
 
-$dataFile = '/var/www/mikhmon/data/pending_routers.json';
-$configFile = '/var/www/mikhmon/include/config.php';
+$dataFile = '/var/www/pacenetintegratedapp/data/pending_routers.json';
+$configFile = '/var/www/pacenetintegratedapp/include/config.php';
 $serverPubIp = '202.10.46.222';
 $serverWgPub = trim(@file_get_contents('/etc/wireguard/server_public.key') ?: 'UfYb+alr8F2T69ylHUjN14K0TpZ4mjwn+8fHsV5aWWc=');
 

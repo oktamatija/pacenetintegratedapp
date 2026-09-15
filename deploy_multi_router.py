@@ -2,44 +2,44 @@ import os
 import shutil
 import paramiko
 
-# 1. Collect all API files and App build files from backend/ to sync
-local_backend = 'd:\\App\\M.yunus\\backend'
-remote_root = '/var/www/mikhmon'
+# 1. Collect all API files and App build files from pacenetintegratedapp/ to sync
+local_pacenet = 'd:\\App\\M.yunus\\pacenetintegratedapp'
+remote_root = '/var/www/pacenetintegratedapp'
 
 files_to_sync = [
-    (os.path.join(local_backend, 'index.php'), f'{remote_root}/index.php'),
-    (os.path.join(local_backend, 'join.php'), f'{remote_root}/join.php'),
+    (os.path.join(local_pacenet, 'index.php'), f'{remote_root}/index.php'),
+    (os.path.join(local_pacenet, 'join.php'), f'{remote_root}/join.php'),
 ]
 
 # Add API directory files
-api_dir = os.path.join(local_backend, 'api')
+api_dir = os.path.join(local_pacenet, 'api')
 if os.path.exists(api_dir):
     for f in os.listdir(api_dir):
         if f.endswith('.php'):
             files_to_sync.append((os.path.join(api_dir, f), f'{remote_root}/api/{f}'))
 
 # Add Lib directory files
-lib_dir = os.path.join(local_backend, 'lib')
+lib_dir = os.path.join(local_pacenet, 'lib')
 if os.path.exists(lib_dir):
     for f in os.listdir(lib_dir):
         if f.endswith('.php'):
             files_to_sync.append((os.path.join(lib_dir, f), f'{remote_root}/lib/{f}'))
 
 # Add Traffic directory files
-traffic_dir = os.path.join(local_backend, 'traffic')
+traffic_dir = os.path.join(local_pacenet, 'traffic')
 if os.path.exists(traffic_dir):
     for f in os.listdir(traffic_dir):
         if f.endswith('.php'):
             files_to_sync.append((os.path.join(traffic_dir, f), f'{remote_root}/traffic/{f}'))
 
 # Add Hotspot-login captive portal files
-hl_dir = os.path.join(local_backend, 'hotspot-login')
+hl_dir = os.path.join(local_pacenet, 'hotspot-login')
 if os.path.exists(hl_dir):
     for f in os.listdir(hl_dir):
         files_to_sync.append((os.path.join(hl_dir, f), f'{remote_root}/hotspot-login/{f}'))
 
 # Add App build directory files recursively
-app_dir = os.path.join(local_backend, 'app')
+app_dir = os.path.join(local_pacenet, 'app')
 if os.path.exists(app_dir):
     for root, dirs, files in os.walk(app_dir):
         for f in files:
@@ -47,12 +47,12 @@ if os.path.exists(app_dir):
             rel = os.path.relpath(full_local, app_dir)
             files_to_sync.append((full_local, f'{remote_root}/app/{rel.replace("\\", "/")}'))
 
-print(f"Total files to deploy from backend/: {len(files_to_sync)}", flush=True)
+print(f"Total files to deploy from pacenetintegratedapp/: {len(files_to_sync)}", flush=True)
 
 # 2. Local backup update
 backup_roots = [
-    'd:\\App\\M.yunus\\vps_backup\\var\\www\\mikhmon',
-    'd:\\App\\M.yunus\\vps_backup\\var_www\\mikhmon'
+    'd:\\App\\M.yunus\\vps_backup\\var\\www\\pacenetintegratedapp',
+    'd:\\App\\M.yunus\\vps_backup\\var_www\\pacenetintegratedapp'
 ]
 
 for src, r_path in files_to_sync:
@@ -77,8 +77,15 @@ ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 ssh.connect(VPS_HOST, port=VPS_PORT, username=VPS_USER, password=VPS_PASS, timeout=10)
 
-# Pre-create all remote directories in one command
-_, stdout, _ = ssh.exec_command("mkdir -p /var/www/mikhmon/api /var/www/mikhmon/lib /var/www/mikhmon/traffic /var/www/mikhmon/hotspot-login /var/www/mikhmon/app/assets")
+# Migrate /var/www/mikhmon to /var/www/pacenetintegratedapp if needed, and create symlink fallback
+migration_cmd = """
+if [ -d /var/www/mikhmon ] && [ ! -d /var/www/pacenetintegratedapp ]; then
+    mv /var/www/mikhmon /var/www/pacenetintegratedapp
+fi
+ln -sfn /var/www/pacenetintegratedapp /var/www/mikhmon
+mkdir -p /var/www/pacenetintegratedapp/api /var/www/pacenetintegratedapp/lib /var/www/pacenetintegratedapp/traffic /var/www/pacenetintegratedapp/hotspot-login /var/www/pacenetintegratedapp/app/assets
+"""
+_, stdout, _ = ssh.exec_command(migration_cmd)
 stdout.channel.recv_exit_status()
 
 sftp = ssh.open_sftp()
@@ -103,18 +110,19 @@ for _, r_path in files_to_sync:
 
 # 5. Update Nginx configuration for /app/ SPA routing
 nginx_conf_cmd = """
-cat << 'EOF' > /etc/nginx/conf.d/mikhmon.conf
+rm -f /etc/nginx/conf.d/mikhmon.conf
+cat << 'EOF' > /etc/nginx/conf.d/pacenet.conf
 # HTTP Server (Port 80)
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name hy0045.my.id 202.10.46.222 _;
-    root /var/www/mikhmon;
+    root /var/www/pacenetintegratedapp;
     index index.php index.html;
 
     # Allow ACME Challenge for Let's Encrypt
     location /.well-known/acme-challenge/ {
-        root /var/www/mikhmon;
+        root /var/www/pacenetintegratedapp;
     }
 
     # Allow RouterOS join bootstrap without redirect
@@ -148,7 +156,7 @@ server {
     listen 8080 default_server;
     listen [::]:8080 default_server;
     server_name _;
-    root /var/www/mikhmon;
+    root /var/www/pacenetintegratedapp;
     index index.php;
 
     location / {
@@ -178,7 +186,7 @@ server {
     listen 443 ssl http2 default_server;
     listen [::]:443 ssl http2 default_server;
     server_name hy0045.my.id;
-    root /var/www/mikhmon;
+    root /var/www/pacenetintegratedapp;
     index index.php index.html;
 
     ssl_certificate /etc/letsencrypt/live/hy0045.my.id/fullchain.pem;
@@ -197,7 +205,7 @@ server {
 
     # Modern React SPA at /app/
     location /app/ {
-        alias /var/www/mikhmon/app/;
+        alias /var/www/pacenetintegratedapp/app/;
         index index.html;
         try_files $uri $uri/ /app/index.html;
     }
@@ -235,16 +243,15 @@ print(stdout.read().decode('utf-8'), flush=True)
 print(stderr.read().decode('utf-8'), flush=True)
 
 # 7. Set correct permissions and enable Watchdog Expire cron
-_, stdout, _ = ssh.exec_command("chown -R nginx:nginx /var/www/mikhmon && chmod -R 755 /var/www/mikhmon/app /var/www/mikhmon/api && chmod +x /var/www/mikhmon/api/watchdog_expire.php")
+_, stdout, _ = ssh.exec_command("chown -R nginx:nginx /var/www/pacenetintegratedapp && chmod -R 755 /var/www/pacenetintegratedapp/app /var/www/pacenetintegratedapp/api && chmod +x /var/www/pacenetintegratedapp/api/watchdog_expire.php")
 stdout.channel.recv_exit_status()
 
 cron_setup = """
-(crontab -l 2>/dev/null | grep -v 'watchdog_expire.php'; echo "* * * * * /usr/bin/php /var/www/mikhmon/api/watchdog_expire.php >/dev/null 2>&1") | crontab -
+(crontab -l 2>/dev/null | grep -v 'watchdog_expire.php'; echo "* * * * * /usr/bin/php /var/www/pacenetintegratedapp/api/watchdog_expire.php >/dev/null 2>&1") | crontab -
 """
 _, stdout, _ = ssh.exec_command(cron_setup)
 stdout.channel.recv_exit_status()
 print("Watchdog Expire cron configured and active (every 1 min).", flush=True)
 
 ssh.close()
-print("\nReact SPA and REST APIs deployed and operational at https://hy0045.my.id/app/ !", flush=True)
-
+print("\nPACENET PRO deployed and operational at https://hy0045.my.id/app/ !", flush=True)

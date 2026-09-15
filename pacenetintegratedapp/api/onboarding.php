@@ -6,8 +6,8 @@ require_once(__DIR__ . '/common.php');
 checkAdminAuth(true);
 session_write_close();
 
-$dataFile = '/var/www/mikhmon/data/pending_routers.json';
-$configFile = '/var/www/mikhmon/include/config.php';
+$dataFile = '/var/www/pacenetintegratedapp/data/pending_routers.json';
+$configFile = '/var/www/pacenetintegratedapp/include/config.php';
 $serverPubIp = '202.10.46.222';
 $bootstrapCmd = '/tool fetch url="http://202.10.46.222/join.php?action=bootstrap" mode=http dst-path=join.rsc; :delay 2s; /import join.rsc; /file remove join.rsc';
 

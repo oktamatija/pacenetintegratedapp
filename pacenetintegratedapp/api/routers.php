@@ -62,7 +62,7 @@ if ($action === 'update_credentials') {
         jsonResponse(false, null, 'Session name dan IP router wajib diisi.');
     }
 
-    $cfgFile = '/var/www/mikhmon/include/config.php';
+    $cfgFile = '/var/www/pacenetintegratedapp/include/config.php';
     if (!file_exists($cfgFile)) $cfgFile = __DIR__ . '/../include/config.php';
     if (!file_exists($cfgFile)) {
         jsonResponse(false, null, 'File config.php tidak ditemukan.');
@@ -117,7 +117,7 @@ if ($action === 'delete_router') {
         jsonResponse(false, null, 'Parameter session tidak boleh kosong.');
     }
 
-    $cfgFile = '/var/www/mikhmon/include/config.php';
+    $cfgFile = '/var/www/pacenetintegratedapp/include/config.php';
     if (!file_exists($cfgFile)) $cfgFile = __DIR__ . '/../include/config.php';
 
     $content = file_get_contents($cfgFile);

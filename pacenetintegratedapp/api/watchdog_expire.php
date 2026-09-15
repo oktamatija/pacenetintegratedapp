@@ -4,7 +4,7 @@
  * Ensures strict enforcement of voucher expiration for both FreeRADIUS & MikroTik Local Hotspot.
  * 
  * Runs via CLI / Cron every minute:
- * * * * * /usr/bin/php /var/www/mikhmon/api/watchdog_expire.php >/dev/null 2>&1
+ * * * * * /usr/bin/php /var/www/pacenetintegratedapp/api/watchdog_expire.php >/dev/null 2>&1
  */
 
 if (php_sapi_name() !== 'cli' && !isset($_GET['run_now'])) {

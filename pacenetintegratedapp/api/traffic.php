@@ -6,7 +6,7 @@ require_once(__DIR__ . '/common.php');
 checkAdminAuth(true);
 session_write_close();
 
-$dbPath = '/var/www/mikhmon/data/traffic_history.db';
+$dbPath = '/var/www/pacenetintegratedapp/data/traffic_history.db';
 if (!file_exists($dbPath)) {
     // Check local fallback
     $dbPath = __DIR__ . '/../data/traffic_history.db';

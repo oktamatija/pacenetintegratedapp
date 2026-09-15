@@ -84,7 +84,7 @@ Built on modern **React 19 + Vite** (SPA frontend) and high-performance **PHP RE
 │   │   ├── App.jsx            # Master Router & State Controller
 │   │   └── index.css          # Glassmorphism dark NOC design system
 │   └── package.json
-├── backend/                   # Independent Pacenet PHP Backend & REST APIs
+├── pacenetintegratedapp/      # Independent Pacenet PHP Backend & REST APIs
 │   ├── api/                   # Modern JSON REST endpoints
 │   │   ├── common.php         # Shared utilities, duration regex, auth guards
 │   │   ├── auth.php           # Session & Token authentication controller
@@ -129,14 +129,14 @@ npm run build
 ```
 
 ### 3. Backend & Router Configuration
-1. Copy `backend/include/config.php.example` to `backend/include/config.php`:
+1. Copy `pacenetintegratedapp/include/config.php.example` to `pacenetintegratedapp/include/config.php`:
    ```bash
-   cp backend/include/config.php.example backend/include/config.php
+   cp pacenetintegratedapp/include/config.php.example pacenetintegratedapp/include/config.php
    ```
 2. Configure your MikroTik routers in `config.php` with appropriate API credentials and WireGuard IP addresses.
 3. Configure the watchdog cron job on your server:
    ```cron
-   * * * * * /usr/bin/php /var/www/mikhmon/api/watchdog_expire.php >/dev/null 2>&1
+   * * * * * /usr/bin/php /var/www/pacenetintegratedapp/api/watchdog_expire.php >/dev/null 2>&1
    ```
 
 ### 4. Deploying to VPS

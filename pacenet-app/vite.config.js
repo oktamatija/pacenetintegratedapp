@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/app/',
   build: {
-    outDir: '../backend/app',
+    outDir: '../pacenetintegratedapp/app',
     emptyOutDir: true,
   },
   server: {

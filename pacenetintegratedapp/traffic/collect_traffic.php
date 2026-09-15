@@ -2,7 +2,7 @@
 ini_set('display_errors', 0);
 error_reporting(0);
 
-$dbPath = '/var/www/mikhmon/data/traffic_history.db';
+$dbPath = '/var/www/pacenetintegratedapp/data/traffic_history.db';
 $db = new SQLite3($dbPath);
 $db->exec("CREATE TABLE IF NOT EXISTS traffic_samples (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -16,9 +16,8 @@ $db->exec("CREATE TABLE IF NOT EXISTS traffic_samples (
 )");
 $db->exec("CREATE INDEX IF NOT EXISTS idx_iface_ts ON traffic_samples(interface, timestamp)");
 
-include_once('/var/www/mikhmon/include/config.php');
-include_once('/var/www/mikhmon/include/readcfg.php');
-include_once('/var/www/mikhmon/lib/routeros_api.class.php');
+include_once('/var/www/pacenetintegratedapp/include/config.php');
+include_once('/var/www/pacenetintegratedapp/lib/routeros_api.class.php');
 
 $api = new RouterosAPI();
 $api->debug = false;

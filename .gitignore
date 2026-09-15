@@ -6,7 +6,7 @@ deploy_config.py
 *.local
 
 # Router Connection Secrets (Actual config with passwords)
-backend/include/config.php
+pacenetintegratedapp/include/config.php
 mikhmon/
 
 # Backups, Archives, & System Dumps
