@@ -6,7 +6,8 @@ deploy_config.py
 *.local
 
 # Router Connection Secrets (Actual config with passwords)
-mikhmon/include/config.php
+backend/include/config.php
+mikhmon/
 
 # Backups, Archives, & System Dumps
 vps_backup/

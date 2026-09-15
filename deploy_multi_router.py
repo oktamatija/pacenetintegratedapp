@@ -2,40 +2,52 @@ import os
 import shutil
 import paramiko
 
-# 1. Collect all API files and App build files to sync
-local_mikhmon = 'd:\\App\\M.yunus\\mikhmon'
-remote_mikhmon = '/var/www/mikhmon'
+# 1. Collect all API files and App build files from backend/ to sync
+local_backend = 'd:\\App\\M.yunus\\backend'
+remote_root = '/var/www/mikhmon'
 
 files_to_sync = [
-    (os.path.join(local_mikhmon, 'join.php'), f'{remote_mikhmon}/join.php'),
-    (os.path.join(local_mikhmon, 'admin.php'), f'{remote_mikhmon}/admin.php'),
-    (os.path.join(local_mikhmon, 'include', 'menu.php'), f'{remote_mikhmon}/include/menu.php'),
-    (os.path.join(local_mikhmon, 'settings', 'accept_router.php'), f'{remote_mikhmon}/settings/accept_router.php'),
-    (os.path.join(local_mikhmon, 'settings', 'sessions.php'), f'{remote_mikhmon}/settings/sessions.php'),
-    (os.path.join(local_mikhmon, 'settings', 'router_stats_api.php'), f'{remote_mikhmon}/settings/router_stats_api.php'),
-    (os.path.join(local_mikhmon, 'settings', 'all_routers.php'), f'{remote_mikhmon}/settings/all_routers.php'),
-    (os.path.join(local_mikhmon, 'dashboard', 'home.php'), f'{remote_mikhmon}/dashboard/home.php'),
-    (os.path.join(local_mikhmon, 'traffic', 'trafficmonitor.php'), f'{remote_mikhmon}/traffic/trafficmonitor.php'),
-    (os.path.join(local_mikhmon, 'traffic', 'traffic_api.php'), f'{remote_mikhmon}/traffic/traffic_api.php'),
+    (os.path.join(local_backend, 'index.php'), f'{remote_root}/index.php'),
+    (os.path.join(local_backend, 'join.php'), f'{remote_root}/join.php'),
 ]
 
 # Add API directory files
-api_dir = os.path.join(local_mikhmon, 'api')
+api_dir = os.path.join(local_backend, 'api')
 if os.path.exists(api_dir):
     for f in os.listdir(api_dir):
         if f.endswith('.php'):
-            files_to_sync.append((os.path.join(api_dir, f), f'{remote_mikhmon}/api/{f}'))
+            files_to_sync.append((os.path.join(api_dir, f), f'{remote_root}/api/{f}'))
+
+# Add Lib directory files
+lib_dir = os.path.join(local_backend, 'lib')
+if os.path.exists(lib_dir):
+    for f in os.listdir(lib_dir):
+        if f.endswith('.php'):
+            files_to_sync.append((os.path.join(lib_dir, f), f'{remote_root}/lib/{f}'))
+
+# Add Traffic directory files
+traffic_dir = os.path.join(local_backend, 'traffic')
+if os.path.exists(traffic_dir):
+    for f in os.listdir(traffic_dir):
+        if f.endswith('.php'):
+            files_to_sync.append((os.path.join(traffic_dir, f), f'{remote_root}/traffic/{f}'))
+
+# Add Hotspot-login captive portal files
+hl_dir = os.path.join(local_backend, 'hotspot-login')
+if os.path.exists(hl_dir):
+    for f in os.listdir(hl_dir):
+        files_to_sync.append((os.path.join(hl_dir, f), f'{remote_root}/hotspot-login/{f}'))
 
 # Add App build directory files recursively
-app_dir = os.path.join(local_mikhmon, 'app')
+app_dir = os.path.join(local_backend, 'app')
 if os.path.exists(app_dir):
     for root, dirs, files in os.walk(app_dir):
         for f in files:
             full_local = os.path.join(root, f)
             rel = os.path.relpath(full_local, app_dir)
-            files_to_sync.append((full_local, f'{remote_mikhmon}/app/{rel.replace("\\", "/")}'))
+            files_to_sync.append((full_local, f'{remote_root}/app/{rel.replace("\\", "/")}'))
 
-print(f"Total files to deploy: {len(files_to_sync)}", flush=True)
+print(f"Total files to deploy from backend/: {len(files_to_sync)}", flush=True)
 
 # 2. Local backup update
 backup_roots = [
@@ -44,7 +56,7 @@ backup_roots = [
 ]
 
 for src, r_path in files_to_sync:
-    rel_path = r_path.replace(f'{remote_mikhmon}/', '')
+    rel_path = r_path.replace(f'{remote_root}/', '')
     for b_root in backup_roots:
         dest = os.path.join(b_root, rel_path.replace('/', '\\'))
         os.makedirs(os.path.dirname(dest), exist_ok=True)
@@ -66,7 +78,7 @@ ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 ssh.connect(VPS_HOST, port=VPS_PORT, username=VPS_USER, password=VPS_PASS, timeout=10)
 
 # Pre-create all remote directories in one command
-_, stdout, _ = ssh.exec_command("mkdir -p /var/www/mikhmon/api /var/www/mikhmon/app/assets /var/www/mikhmon/settings /var/www/mikhmon/traffic")
+_, stdout, _ = ssh.exec_command("mkdir -p /var/www/mikhmon/api /var/www/mikhmon/lib /var/www/mikhmon/traffic /var/www/mikhmon/hotspot-login /var/www/mikhmon/app/assets")
 stdout.channel.recv_exit_status()
 
 sftp = ssh.open_sftp()

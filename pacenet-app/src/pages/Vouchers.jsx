@@ -309,18 +309,14 @@ export default function Vouchers({ onNavigate, isReadOnly }) {
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
-                          {u.comment && (
-                            <a
-                              href={`/voucher/print.php?id=${encodeURIComponent(u.comment)}&session=Rumah-DOLPHIN&paper=f4`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="btn btn-secondary btn-sm"
-                              style={{ padding: '4px 8px', color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}
-                              title={`Cetak Batch "${u.comment}" di Kertas F4 (55/Lembar)`}
-                            >
-                              <Printer size={13} />
-                            </a>
-                          )}
+                          <button
+                            onClick={() => onNavigate && onNavigate('print')}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '4px 8px', color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}
+                            title="Buka Lembar Pencetakan F4 (55 Slip/Lembar)"
+                          >
+                            <Printer size={13} />
+                          </button>
                           <button
                             className="btn btn-secondary btn-sm"
                             style={{ padding: '4px 8px' }}

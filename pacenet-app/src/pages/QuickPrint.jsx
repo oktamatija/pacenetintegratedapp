@@ -10,7 +10,6 @@ import {
   Filter, 
   QrCode, 
   Sliders, 
-  ExternalLink,
   Scissors,
   CheckCircle2
 } from 'lucide-react';
@@ -168,21 +167,6 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
           </div>
 
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* Open in Classic Mikhmon Print if batch exists */}
-            {detectedBatch && (
-              <a
-                href={`/voucher/print.php?id=${encodeURIComponent(detectedBatch)}&session=${encodeURIComponent(selectedRouter || 'Rumah-DOLPHIN')}&paper=f4`}
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-secondary btn-sm"
-                style={{ borderColor: 'rgba(56, 189, 248, 0.4)', color: '#38bdf8' }}
-                title="Buka format print klasik Mikhmon di tab baru"
-              >
-                <ExternalLink size={13} />
-                <span>Format Mikhmon Asli (F4)</span>
-              </a>
-            )}
-
             <button 
               className="btn btn-primary"
               onClick={handlePrint}

@@ -351,19 +351,6 @@ export default function GenerateVoucher({ onNavigate, setGeneratedForPrint, isRe
                   <Printer size={14} />
                   <span>Cetak Lembar F4 ({result.count})</span>
                 </button>
-
-                {result.batch_comment && (
-                  <a
-                    href={`/voucher/print.php?id=${encodeURIComponent(result.batch_comment)}&session=${encodeURIComponent(server === 'all' ? 'Rumah-DOLPHIN' : server)}&paper=f4`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '11.5px', color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.4)' }}
-                    title="Buka format print klasik Mikhmon di tab baru"
-                  >
-                    <span>Mikhmon F4</span>
-                  </a>
-                )}
               </div>
             )}
           </div>

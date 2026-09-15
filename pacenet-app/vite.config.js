@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/app/',
   build: {
-    outDir: '../mikhmon/app',
+    outDir: '../backend/app',
     emptyOutDir: true,
   },
   server: {

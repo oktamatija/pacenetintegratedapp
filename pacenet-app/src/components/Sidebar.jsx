@@ -7,7 +7,6 @@ import {
   Printer, 
   FileText, 
   Server, 
-  ExternalLink,
   ShieldCheck,
   Zap,
   ArrowUpCircle,
@@ -118,21 +117,6 @@ export default function Sidebar({ currentPage, onNavigate, isOpen, onClose, curr
               })}
             </div>
           ))}
-
-          {/* Quick External Links */}
-          <div style={{ marginTop: 'auto', paddingTop: '16px' }}>
-            <div className="nav-section-title">LEGACY FALLBACK</div>
-            <a 
-              href="/admin.php" 
-              target="_blank" 
-              rel="noreferrer"
-              className="nav-item"
-              style={{ fontSize: '12px', color: 'var(--text-muted)' }}
-            >
-              <ExternalLink size={14} />
-              <span>Buka Mikhmon Klasik</span>
-            </a>
-          </div>
         </nav>
 
         {/* Footer User Info */}

@@ -80,18 +80,30 @@ Built on modern **React 19 + Vite** (SPA frontend) and high-performance **PHP RE
 ├── pacenet-app/               # React 19 Single Page Application (Frontend)
 │   ├── src/
 │   │   ├── components/        # UI Components (Navbar, Sidebar, etc.)
-│   │   ├── pages/             # Dashboard, Reports, Vouchers, Profiles, etc.)
+│   │   ├── pages/             # Dashboard, Reports, Vouchers, Profiles, etc.
 │   │   ├── App.jsx            # Master Router & State Controller
 │   │   └── index.css          # Glassmorphism dark NOC design system
 │   └── package.json
-├── mikhmon/                   # PHP Backend Engine & Mikhmon REST APIs
+├── backend/                   # Independent Pacenet PHP Backend & REST APIs
 │   ├── api/                   # Modern JSON REST endpoints
 │   │   ├── common.php         # Shared utilities, duration regex, auth guards
+│   │   ├── auth.php           # Session & Token authentication controller
 │   │   ├── reports.php        # Multi-router sales & voucher classification API
 │   │   ├── routers.php        # Multi-router health & WAN traffic monitor
 │   │   ├── vouchers.php       # High-speed voucher inventory & batch querying
 │   │   ├── watchdog_expire.php# 1-minute expiration watchdog daemon
-│   │   └── profiles.php       # Hotspot user profile generator
+│   │   ├── profiles.php       # Hotspot user profile generator & quick print
+│   │   ├── generate.php       # High-speed batch voucher generator
+│   │   ├── traffic.php        # Multi-router SQLite traffic statistics API
+│   │   ├── system.php         # Host VPS resources & WireGuard mesh monitor
+│   │   ├── ros_manager.php    # RouterOS firmware upgrade & version manager
+│   │   ├── onboarding.php     # Zero-touch router onboarding controller
+│   │   └── olt_ont.php        # Fiber OLT/ONT topology & GIS mapping API
+│   ├── lib/                   # RouterOS API client & binary formatting helpers
+│   ├── data/                  # SQLite traffic database & device storage
+│   ├── hotspot-login/         # Responsive customer captive portal login
+│   ├── join.php               # Zero-Touch MikroTik WireGuard Bootstrap
+│   ├── index.php              # Root entry point (redirects to /app/)
 │   └── include/
 │       └── config.php.example # Configuration template for routers
 ├── deploy_multi_router.py     # Automated build & VPS sync deploy script
@@ -117,9 +129,9 @@ npm run build
 ```
 
 ### 3. Backend & Router Configuration
-1. Copy `mikhmon/include/config.php.example` to `mikhmon/include/config.php`:
+1. Copy `backend/include/config.php.example` to `backend/include/config.php`:
    ```bash
-   cp mikhmon/include/config.php.example mikhmon/include/config.php
+   cp backend/include/config.php.example backend/include/config.php
    ```
 2. Configure your MikroTik routers in `config.php` with appropriate API credentials and WireGuard IP addresses.
 3. Configure the watchdog cron job on your server:
