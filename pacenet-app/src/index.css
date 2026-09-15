@@ -1081,3 +1081,54 @@ input, select, textarea {
   background: rgba(255, 255, 255, 0.02);
   color: var(--text-primary);
 }
+
+/* Print & PDF Export Styles */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .sidebar, .topbar, .demo-top-banner, .no-print, button, .search-box, .sidebar-nav, .mobile-toggle {
+    display: none !important;
+  }
+  .main-wrapper, .page-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+  .print-only {
+    display: block !important;
+    color: #000 !important;
+  }
+  .glass-card {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin-bottom: 20px !important;
+  }
+  .data-table {
+    width: 100% !important;
+    color: #000 !important;
+    border-collapse: collapse !important;
+  }
+  .data-table th {
+    background: #f1f5f9 !important;
+    color: #000 !important;
+    border: 1px solid #cbd5e1 !important;
+    font-size: 11px !important;
+    padding: 6px 8px !important;
+  }
+  .data-table td {
+    color: #000 !important;
+    border: 1px solid #e2e8f0 !important;
+    font-size: 10.5px !important;
+    padding: 5px 8px !important;
+  }
+  .tag {
+    border: 1px solid #ccc !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+}
+

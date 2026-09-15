@@ -1,0 +1,93 @@
+[
+  {
+    "id": "usr_owner_01",
+    "username": "owner",
+    "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi",
+    "password_plain": "1234",
+    "role": "owner",
+    "name": "Owner Pacenet Pro",
+    "kiosk_name": "",
+    "phone": "081100000001",
+    "status": "active",
+    "created_at": "2026-09-15 15:00:00",
+    "last_login": null
+  },
+  {
+    "id": "usr_admin_01",
+    "username": "admin",
+    "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi",
+    "password_plain": "1234",
+    "role": "admin",
+    "name": "Administrator NOC",
+    "kiosk_name": "",
+    "phone": "081100000002",
+    "status": "active",
+    "created_at": "2026-09-15 15:00:00",
+    "last_login": null
+  },
+  {
+    "id": "usr_manager_01",
+    "username": "manager",
+    "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi",
+    "password_plain": "1234",
+    "role": "manager",
+    "name": "Manager Operasional",
+    "kiosk_name": "",
+    "phone": "081100000003",
+    "status": "active",
+    "created_at": "2026-09-15 15:00:00",
+    "last_login": null
+  },
+  {
+    "id": "usr_reseller_01",
+    "username": "reseller",
+    "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi",
+    "password_plain": "1234",
+    "role": "reseller",
+    "name": "Kios Berkah",
+    "kiosk_name": "Kios Berkah Hamadi",
+    "phone": "081234567890",
+    "status": "active",
+    "created_at": "2026-09-15 15:00:00",
+    "last_login": null
+  },
+  {
+    "id": "usr_noc_01",
+    "username": "staff_noc",
+    "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi",
+    "password_plain": "1234",
+    "role": "staff_noc",
+    "name": "Staff NOC Lapangan",
+    "kiosk_name": "",
+    "phone": "081298765432",
+    "status": "active",
+    "created_at": "2026-09-15 15:00:00",
+    "last_login": null
+  },
+  {
+    "id": "usr_finance_01",
+    "username": "finance",
+    "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi",
+    "password_plain": "1234",
+    "role": "finance",
+    "name": "Finance & Akuntansi",
+    "kiosk_name": "",
+    "phone": "081345678901",
+    "status": "active",
+    "created_at": "2026-09-15 15:00:00",
+    "last_login": null
+  },
+  {
+    "id": "usr_demo_01",
+    "username": "demo",
+    "password_hash": "$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi",
+    "password_plain": "demo",
+    "role": "demo",
+    "name": "Pengguna Demo",
+    "kiosk_name": "",
+    "phone": "-",
+    "status": "active",
+    "created_at": "2026-09-15 15:00:00",
+    "last_login": null
+  }
+]

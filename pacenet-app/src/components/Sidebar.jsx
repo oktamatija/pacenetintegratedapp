@@ -14,13 +14,31 @@ import {
   Network,
   Layers,
   Eye,
-  X
+  X,
+  Store,
+  UserCog,
+  Crown,
+  Shield,
+  Briefcase
 } from 'lucide-react';
 
-export default function Sidebar({ currentPage, onNavigate, isOpen, onClose, currentUser, isReadOnly }) {
-  const navItems = [
+export default function Sidebar({ 
+  currentPage, 
+  onNavigate, 
+  isOpen, 
+  onClose, 
+  currentUser, 
+  userRole = 'admin', 
+  userProfile = {}, 
+  isReadOnly = false 
+}) {
+  const role = userRole || 'admin';
+
+  // Section & Nav Items with Role Filters
+  const allSections = [
     {
       section: 'MONITORING & CORE',
+      roles: ['owner', 'admin', 'manager', 'staff_noc', 'demo'],
       items: [
         { id: 'dashboard', label: 'NOC Dashboard', icon: Activity, badge: 'Live' },
         { id: 'onboarding', label: 'Router Onboarding', icon: Sparkles, badge: 'Zero-Touch' },
@@ -31,7 +49,15 @@ export default function Sidebar({ currentPage, onNavigate, isOpen, onClose, curr
       ]
     },
     {
+      section: 'PORTAL RESELLER',
+      roles: ['owner', 'admin', 'manager', 'reseller'],
+      items: [
+        { id: 'reseller', label: 'Reseller Kios Voucher', icon: Store, badge: 'Scanner' }
+      ]
+    },
+    {
       section: 'BILLING & VOUCHERS',
+      roles: ['owner', 'admin', 'manager', 'demo'],
       items: [
         { id: 'user_profiles', label: 'User Profiles', icon: Layers, badge: 'Paket' },
         { id: 'vouchers', label: 'Vouchers Hub', icon: Users, badge: '2.6k+' },
@@ -41,11 +67,39 @@ export default function Sidebar({ currentPage, onNavigate, isOpen, onClose, curr
     },
     {
       section: 'LAPORAN KEUANGAN',
+      roles: ['owner', 'admin', 'manager', 'finance', 'demo'],
       items: [
         { id: 'reports', label: 'Rekap Penjualan', icon: FileText }
       ]
+    },
+    {
+      section: 'ADMINISTRASI & RBAC',
+      roles: ['owner', 'admin'],
+      items: [
+        { id: 'users_management', label: 'Kelola Pengguna', icon: UserCog, badge: 'RBAC' }
+      ]
     }
   ];
+
+  // Filter sections and items based on role
+  const filteredSections = allSections
+    .filter(sec => sec.roles.includes(role))
+    .map(sec => ({
+      ...sec,
+      items: sec.items
+    }));
+
+  const roleMeta = {
+    owner: { label: 'Owner', color: '#ec4899', icon: Crown },
+    admin: { label: 'Administrator', color: '#00d2d3', icon: Shield },
+    manager: { label: 'Manager', color: '#a855f7', icon: Briefcase },
+    reseller: { label: 'Reseller Kios', color: '#f59e0b', icon: Store },
+    staff_noc: { label: 'Staff NOC', color: '#3b82f6', icon: Layers },
+    finance: { label: 'Finance', color: '#10b981', icon: BarChart3 },
+    demo: { label: 'Demo Read-Only', color: '#f59e0b', icon: Eye }
+  }[role] || { label: role, color: '#00d2d3', icon: ShieldCheck };
+
+  const RoleIcon = roleMeta.icon;
 
   return (
     <>
@@ -86,7 +140,7 @@ export default function Sidebar({ currentPage, onNavigate, isOpen, onClose, curr
 
         {/* Navigation */}
         <nav className="sidebar-nav">
-          {navItems.map((sec, sIdx) => (
+          {filteredSections.map((sec, sIdx) => (
             <div key={sIdx}>
               <div className="nav-section-title">{sec.section}</div>
               {sec.items.map((item) => {
@@ -106,7 +160,11 @@ export default function Sidebar({ currentPage, onNavigate, isOpen, onClose, curr
                     <span style={{ flex: 1 }}>{item.label}</span>
                     {item.badge && (
                       <span 
-                        className={`tag ${item.badge === 'Live' ? 'tag-emerald' : 'tag-cyan'}`}
+                        className={`tag ${
+                          item.badge === 'Live' ? 'tag-emerald' : 
+                          item.badge === 'Scanner' ? 'tag-amber' : 
+                          item.badge === 'RBAC' ? 'tag-purple' : 'tag-cyan'
+                        }`}
                         style={{ fontSize: '10px', padding: '1px 6px' }}
                       >
                         {item.badge}
@@ -126,35 +184,30 @@ export default function Sidebar({ currentPage, onNavigate, isOpen, onClose, curr
               width: '34px',
               height: '34px',
               borderRadius: '50%',
-              background: isReadOnly ? 'rgba(245, 158, 11, 0.15)' : 'rgba(0, 210, 211, 0.15)',
-              color: isReadOnly ? '#f59e0b' : 'var(--accent-cyan)',
+              background: `${roleMeta.color}22`,
+              color: roleMeta.color,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: isReadOnly ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(0, 210, 211, 0.2)'
+              border: `1px solid ${roleMeta.color}44`
             }}>
-              {isReadOnly ? <Eye size={16} /> : <ShieldCheck size={16} />}
+              <RoleIcon size={16} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {currentUser ? (isReadOnly ? 'Pengguna Demo' : currentUser) : 'Administrator'}
+                  {userProfile?.name || (currentUser ? (isReadOnly ? 'Pengguna Demo' : currentUser) : 'Administrator')}
                 </span>
-                {isReadOnly && (
-                  <span style={{ 
-                    fontSize: '9.5px', 
-                    padding: '1px 5px', 
-                    borderRadius: '4px', 
-                    background: 'rgba(245, 158, 11, 0.2)', 
-                    color: '#f59e0b',
-                    fontWeight: 700 
-                  }}>
-                    READ ONLY
+              </div>
+              <div style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
+                <span style={{ color: roleMeta.color, fontWeight: 700 }}>
+                  ● {roleMeta.label}
+                </span>
+                {userProfile?.kiosk_name && (
+                  <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    • {userProfile.kiosk_name}
                   </span>
                 )}
-              </div>
-              <div style={{ fontSize: '11px', color: isReadOnly ? '#f59e0b' : 'var(--accent-emerald)' }}>
-                {isReadOnly ? '● Mode Peninjauan' : '● Session Active'}
               </div>
             </div>
           </div>

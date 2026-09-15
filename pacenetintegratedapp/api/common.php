@@ -100,6 +100,25 @@ function isReadOnlyUser() {
     return false;
 }
 
+function getUserRole() {
+    return $_SESSION['role'] ?? 'admin';
+}
+
+function getUserName() {
+    return $_SESSION['name'] ?? ($_SESSION['pacenet_user'] ?? 'User');
+}
+
+function getUserKiosk() {
+    return $_SESSION['kiosk_name'] ?? '';
+}
+
+function requireRoles($allowedRoles = array()) {
+    $currentRole = getUserRole();
+    if (!in_array($currentRole, $allowedRoles)) {
+        jsonResponse(false, null, 'Akses ditolak: Anda tidak memiliki izin untuk mengakses resource ini.', 403);
+    }
+}
+
 function checkWritePermission() {
     if (isReadOnlyUser()) {
         jsonResponse(false, null, 'Akses Ditolak: Akun Demo hanya memiliki hak akses lihat (Read-Only). Perubahan atau modifikasi data dinonaktifkan.', 403);

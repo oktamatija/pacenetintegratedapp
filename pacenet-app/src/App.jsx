@@ -12,11 +12,15 @@ import RosManager from './pages/RosManager';
 import RouterOnboarding from './pages/RouterOnboarding';
 import UserProfiles from './pages/UserProfiles';
 import OltOntTopology from './pages/OltOntTopology';
+import UsersManagement from './pages/UsersManagement';
+import ResellerKiosk from './pages/ResellerKiosk';
 import Login from './pages/Login';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [userRole, setUserRole] = useState('admin');
+  const [userProfile, setUserProfile] = useState({});
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
 
@@ -38,7 +42,17 @@ export default function App() {
       if (json.success && json.data.authenticated) {
         setIsAuthenticated(true);
         setCurrentUser(json.data.user);
-        setIsReadOnly(Boolean(json.data.is_readonly || json.data.role === 'demo' || json.data.user === 'demo'));
+        const role = json.data.role || 'admin';
+        setUserRole(role);
+        setUserProfile(json.data);
+        setIsReadOnly(Boolean(json.data.is_readonly || role === 'demo' || json.data.user === 'demo'));
+
+        // Default initial page by role
+        if (role === 'reseller') {
+          setCurrentPage('reseller');
+        } else if (role === 'finance') {
+          setCurrentPage('reports');
+        }
       } else {
         setIsAuthenticated(false);
         setIsReadOnly(false);
@@ -59,6 +73,9 @@ export default function App() {
   // 2. Fetch Multi-Router Live Data
   const fetchRouterStats = useCallback(async () => {
     if (!isAuthenticated) return;
+    // Reseller or Finance do not need periodic 5s live router stats polling
+    if (userRole === 'reseller' || userRole === 'finance') return;
+
     setIsRefreshing(true);
     try {
       const res = await fetch('/api/routers.php');
@@ -73,16 +90,28 @@ export default function App() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, userRole]);
 
   // Initial & periodic polling
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && userRole !== 'reseller' && userRole !== 'finance') {
       fetchRouterStats();
       const interval = setInterval(fetchRouterStats, 5000); // 5s live polling
       return () => clearInterval(interval);
     }
-  }, [isAuthenticated, fetchRouterStats]);
+  }, [isAuthenticated, userRole, fetchRouterStats]);
+
+  // Route Guard: enforce role boundaries
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (userRole === 'reseller' && currentPage !== 'reseller') {
+      setCurrentPage('reseller');
+    } else if (userRole === 'finance' && currentPage !== 'reports') {
+      setCurrentPage('reports');
+    } else if (userRole === 'staff_noc' && ['user_profiles', 'vouchers', 'generate', 'print', 'reports', 'users_management'].includes(currentPage)) {
+      setCurrentPage('dashboard');
+    }
+  }, [isAuthenticated, userRole, currentPage]);
 
   // Logout handler
   const handleLogout = async () => {
@@ -93,6 +122,8 @@ export default function App() {
     }
     setIsAuthenticated(false);
     setCurrentUser(null);
+    setUserRole('admin');
+    setUserProfile({});
     setIsReadOnly(false);
   };
 
@@ -137,11 +168,22 @@ export default function App() {
         onLoginSuccess={(authData) => {
           setIsAuthenticated(true);
           const uname = typeof authData === 'object' ? (authData.user || 'User') : authData;
+          const role = typeof authData === 'object' ? (authData.role || 'admin') : 'admin';
           const isRo = typeof authData === 'object' 
-            ? Boolean(authData.is_readonly || authData.role === 'demo' || uname === 'demo') 
+            ? Boolean(authData.is_readonly || role === 'demo' || uname === 'demo') 
             : (uname === 'demo');
           setCurrentUser(uname);
+          setUserRole(role);
+          setUserProfile(authData);
           setIsReadOnly(isRo);
+
+          if (role === 'reseller') {
+            setCurrentPage('reseller');
+          } else if (role === 'finance') {
+            setCurrentPage('reports');
+          } else {
+            setCurrentPage('dashboard');
+          }
           fetchRouterStats();
         }} 
       />
@@ -150,13 +192,15 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* Responsive Sidebar */}
+      {/* Responsive Sidebar with RBAC */}
       <Sidebar 
         currentPage={currentPage}
         onNavigate={setCurrentPage}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         currentUser={currentUser}
+        userRole={userRole}
+        userProfile={userProfile}
         isReadOnly={isReadOnly}
       />
 
@@ -193,6 +237,21 @@ export default function App() {
               isLoading={isRefreshing} 
               onNavigate={setCurrentPage} 
               onRefresh={fetchRouterStats}
+              isReadOnly={isReadOnly}
+            />
+          )}
+
+          {currentPage === 'reseller' && (
+            <ResellerKiosk 
+              currentUser={currentUser}
+              userProfile={userProfile}
+              isReadOnly={isReadOnly}
+            />
+          )}
+
+          {currentPage === 'users_management' && (
+            <UsersManagement 
+              currentUser={currentUser}
               isReadOnly={isReadOnly}
             />
           )}

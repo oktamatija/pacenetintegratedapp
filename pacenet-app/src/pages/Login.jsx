@@ -194,8 +194,66 @@ export default function Login({ onLoginSuccess }) {
 
             <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0', gap: '10px' }}>
               <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>atau</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>atau uji coba role</span>
               <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+            </div>
+
+            {/* Quick Role Fill Buttons */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => { setUser('owner'); setPass('1234'); }}
+                style={{ fontSize: '11px', padding: '6px 4px' }}
+                title="Owner: Akses Penuh + Kelola Pengguna"
+              >
+                👑 Owner
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => { setUser('admin'); setPass('1234'); }}
+                style={{ fontSize: '11px', padding: '6px 4px' }}
+                title="Admin: Akses Penuh + Kelola Pengguna"
+              >
+                🛡️ Admin
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => { setUser('manager'); setPass('1234'); }}
+                style={{ fontSize: '11px', padding: '6px 4px' }}
+                title="Manager: Seluruh Menu Operasional"
+              >
+                👔 Manager
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => { setUser('reseller'); setPass('1234'); }}
+                style={{ fontSize: '11px', padding: '6px 4px', color: 'var(--accent-amber)' }}
+                title="Reseller: Portal Cek & Scanner Kamera"
+              >
+                🏪 Reseller
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => { setUser('staff_noc'); setPass('1234'); }}
+                style={{ fontSize: '11px', padding: '6px 4px', color: 'var(--accent-blue)' }}
+                title="Staff NOC: Monitoring Core & Dashboard"
+              >
+                ⚡ Staff NOC
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => { setUser('finance'); setPass('1234'); }}
+                style={{ fontSize: '11px', padding: '6px 4px', color: 'var(--accent-emerald)' }}
+                title="Finance: Rekap Penjualan & Ekspor"
+              >
+                💼 Finance
+              </button>
             </div>
 
             <button
@@ -205,7 +263,7 @@ export default function Login({ onLoginSuccess }) {
               className="btn"
               style={{
                 width: '100%',
-                padding: '11px 14px',
+                padding: '10px 14px',
                 background: 'rgba(245, 158, 11, 0.12)',
                 border: '1px solid rgba(245, 158, 11, 0.35)',
                 color: '#f59e0b',
@@ -214,20 +272,21 @@ export default function Login({ onLoginSuccess }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                fontSize: '13px',
+                fontSize: '12.5px',
                 fontWeight: 600,
                 cursor: 'pointer',
-                transition: 'all 0.2s'
+                transition: 'all 0.2s',
+                marginTop: '4px'
               }}
             >
-              <Eye size={16} />
+              <Eye size={15} />
               <span>Masuk Akun Demo (Read-Only)</span>
             </button>
           </div>
         </form>
 
         <div style={{ 
-          marginTop: '20px', 
+          marginTop: '18px', 
           padding: '10px 14px', 
           borderRadius: 'var(--radius-sm)', 
           background: 'rgba(255, 255, 255, 0.03)', 
@@ -237,8 +296,8 @@ export default function Login({ onLoginSuccess }) {
           textAlign: 'center',
           lineHeight: '1.5'
         }}>
-          💡 <strong>Info Akun Demo:</strong> Username: <code style={{ color: '#f59e0b' }}>demo</code> / Sandi: <code style={{ color: '#f59e0b' }}>demo</code>.<br />
-          Hak akses hanya untuk eksplorasi dashboard, monitoring, dan topologi tanpa hak perubahan.
+          💡 <strong>Info Akun Operator:</strong> Password default seluruh akun uji coba adalah <code style={{ color: 'var(--accent-cyan)' }}>1234</code>.<br />
+          Role dan akun dapat dikelola melalui menu <strong>Kelola Pengguna</strong> oleh Owner & Admin.
         </div>
 
         <div style={{ textAlign: 'center', marginTop: '24px', fontSize: '11px', color: 'var(--text-muted)' }}>

@@ -38,6 +38,12 @@ if os.path.exists(hl_dir):
     for f in os.listdir(hl_dir):
         files_to_sync.append((os.path.join(hl_dir, f), f'{remote_root}/hotspot-login/{f}'))
 
+# Add Data directory files
+data_dir = os.path.join(local_pacenet, 'data')
+if os.path.exists(data_dir):
+    for f in os.listdir(data_dir):
+        files_to_sync.append((os.path.join(data_dir, f), f'{remote_root}/data/{f}'))
+
 # Add App build directory files recursively
 app_dir = os.path.join(local_pacenet, 'app')
 if os.path.exists(app_dir):
@@ -83,7 +89,8 @@ if [ -d /var/www/mikhmon ] && [ ! -d /var/www/pacenetintegratedapp ]; then
     mv /var/www/mikhmon /var/www/pacenetintegratedapp
 fi
 ln -sfn /var/www/pacenetintegratedapp /var/www/mikhmon
-mkdir -p /var/www/pacenetintegratedapp/api /var/www/pacenetintegratedapp/lib /var/www/pacenetintegratedapp/traffic /var/www/pacenetintegratedapp/hotspot-login /var/www/pacenetintegratedapp/app/assets
+mkdir -p /var/www/pacenetintegratedapp/api /var/www/pacenetintegratedapp/lib /var/www/pacenetintegratedapp/traffic /var/www/pacenetintegratedapp/hotspot-login /var/www/pacenetintegratedapp/data /var/www/pacenetintegratedapp/app/assets
+chmod -R 777 /var/www/pacenetintegratedapp/data
 """
 _, stdout, _ = ssh.exec_command(migration_cmd)
 stdout.channel.recv_exit_status()
@@ -243,7 +250,7 @@ print(stdout.read().decode('utf-8'), flush=True)
 print(stderr.read().decode('utf-8'), flush=True)
 
 # 7. Set correct permissions and enable Watchdog Expire & Traffic Collector crons
-_, stdout, _ = ssh.exec_command("chown -R nginx:nginx /var/www/pacenetintegratedapp && chmod -R 755 /var/www/pacenetintegratedapp/app /var/www/pacenetintegratedapp/api /var/www/pacenetintegratedapp/traffic && chmod +x /var/www/pacenetintegratedapp/api/watchdog_expire.php /var/www/pacenetintegratedapp/traffic/collect_traffic.php")
+_, stdout, _ = ssh.exec_command("chown -R nginx:nginx /var/www/pacenetintegratedapp && chmod -R 755 /var/www/pacenetintegratedapp/app /var/www/pacenetintegratedapp/api /var/www/pacenetintegratedapp/traffic && chmod -R 777 /var/www/pacenetintegratedapp/data && chmod +x /var/www/pacenetintegratedapp/api/watchdog_expire.php /var/www/pacenetintegratedapp/traffic/collect_traffic.php")
 stdout.channel.recv_exit_status()
 
 cron_setup = """

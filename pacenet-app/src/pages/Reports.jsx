@@ -153,6 +153,71 @@ export default function Reports() {
     a.click();
   };
 
+  const handleExportExcel = () => {
+    if (!vouchers.length) return;
+    const periodTag = summary.period_label || periodType;
+    let xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#0984E3" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="Currency">
+   <NumberFormat ss:Format="Rp #,##0"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Rekap Penjualan">
+  <Table>
+   <Row ss:StyleID="Header">
+    <Cell><Data ss:Type="String">Router</Data></Cell>
+    <Cell><Data ss:Type="String">Status</Data></Cell>
+    <Cell><Data ss:Type="String">Kode Voucher</Data></Cell>
+    <Cell><Data ss:Type="String">Paket / Profil</Data></Cell>
+    <Cell><Data ss:Type="String">Harga (Rp)</Data></Cell>
+    <Cell><Data ss:Type="String">Masa Aktif / Sisa</Data></Cell>
+    <Cell><Data ss:Type="String">Uptime</Data></Cell>
+    <Cell><Data ss:Type="String">IP Address</Data></Cell>
+    <Cell><Data ss:Type="String">MAC Address</Data></Cell>
+    <Cell><Data ss:Type="String">Tanggal</Data></Cell>
+    <Cell><Data ss:Type="String">Waktu</Data></Cell>
+   </Row>`;
+    vouchers.forEach(t => {
+      xml += `
+   <Row>
+    <Cell><Data ss:Type="String">${t.router_name || t.router_session || ''}</Data></Cell>
+    <Cell><Data ss:Type="String">${t.status_label || t.status}</Data></Cell>
+    <Cell><Data ss:Type="String">${t.username}</Data></Cell>
+    <Cell><Data ss:Type="String">${t.profile}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${t.price || 0}</Data></Cell>
+    <Cell><Data ss:Type="String">${t.session_left || t.validity || ''}</Data></Cell>
+    <Cell><Data ss:Type="String">${t.uptime || ''}</Data></Cell>
+    <Cell><Data ss:Type="String">${t.ip || ''}</Data></Cell>
+    <Cell><Data ss:Type="String">${t.mac || ''}</Data></Cell>
+    <Cell><Data ss:Type="String">${t.date || ''}</Data></Cell>
+    <Cell><Data ss:Type="String">${t.time || ''}</Data></Cell>
+   </Row>`;
+    });
+    xml += `
+  </Table>
+ </Worksheet>
+</Workbook>`;
+    const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pacenet-report-${selectedRouter}-${periodTag.replace(/\s+/g, '_')}-${new Date().toISOString().slice(0, 10)}.xls`;
+    a.click();
+  };
+
+  const handleExportPDF = () => {
+    window.print();
+  };
+
   // Calculate max for chart scale
   const maxRevenue = useMemo(() => {
     if (!chartData?.revenue_series || chartData.revenue_series.length === 0) return 1;
@@ -160,9 +225,24 @@ export default function Reports() {
   }, [chartData]);
 
   return (
-    <div>
+    <div className="reports-page-container">
+      {/* Printable PDF Header (only visible during print) */}
+      <div className="print-only" style={{ display: 'none', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
+          <div>
+            <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>PACENET PRO | CLOUD NOC & BILLING</h1>
+            <p style={{ fontSize: '12px', margin: '4px 0 0' }}>Laporan Rekap Penjualan & Voucher Hotspot</p>
+          </div>
+          <div style={{ textAlign: 'right', fontSize: '11px' }}>
+            <div>Periode: <strong>{summary.period_label || 'Semua Waktu'}</strong></div>
+            <div>Router: <strong>{selectedRouter === 'all' ? 'Semua Router' : selectedRouter}</strong></div>
+            <div>Dicetak: {new Date().toLocaleString('id-ID')}</div>
+          </div>
+        </div>
+      </div>
+
       {/* Top Header */}
-      <div style={{
+      <div className="no-print" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -179,7 +259,7 @@ export default function Reports() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Router Selector Dropdown */}
           <div style={{
             display: 'flex',
@@ -220,9 +300,32 @@ export default function Reports() {
             disabled={vouchers.length === 0}
             title="Download data laporan dalam format spreadsheet CSV"
           >
-            <Download size={14} />
-            <span>Ekspor CSV</span>
+            <Download size={13} />
+            <span>CSV</span>
           </button>
+
+          <button 
+            className="btn btn-secondary btn-sm"
+            onClick={handleExportExcel}
+            disabled={vouchers.length === 0}
+            title="Download laporan dalam format Microsoft Excel (.xls)"
+            style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16, 185, 129, 0.3)' }}
+          >
+            <Download size={13} />
+            <span>Excel</span>
+          </button>
+
+          <button 
+            className="btn btn-secondary btn-sm"
+            onClick={handleExportPDF}
+            disabled={vouchers.length === 0}
+            title="Cetak atau Simpan Laporan sebagai Dokumen PDF"
+            style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.3)' }}
+          >
+            <Download size={13} />
+            <span>Cetak / PDF</span>
+          </button>
+
           <button 
             className="btn btn-secondary btn-sm"
             onClick={() => fetchReports(true)}
@@ -230,7 +333,7 @@ export default function Reports() {
             title="Sinkronisasi data langsung dari semua router MikroTik"
           >
             <RefreshCw size={13} className={loading ? 'spin-anim' : ''} />
-            <span>Sync Real-time</span>
+            <span>Sync</span>
           </button>
         </div>
       </div>

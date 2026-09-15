@@ -1,11 +1,25 @@
 <?php
 /**
  * Pacenet REST API - Authentication (Login, Check, Logout)
+ * Multi-Role Support:
+ * - owner, admin, manager, reseller, staff_noc, finance, demo
  */
 require_once(__DIR__ . '/common.php');
 
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
+$usersFile = __DIR__ . '/../data/system_users.json';
+
+function getSystemUsers($file) {
+    if (!file_exists($file)) return array();
+    $raw = @file_get_contents($file);
+    $arr = json_decode($raw, true);
+    return is_array($arr) ? $arr : array();
+}
+
+function updateSystemUsers($file, $users) {
+    @file_put_contents($file, json_encode($users, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+}
 
 // Parse JSON body if sent
 $rawBody = file_get_contents('php://input');
@@ -24,13 +38,31 @@ if (empty($action) && isset($body['action'])) {
 // 1. CHECK SESSION
 if ($action === 'check' || ($method === 'GET' && empty($action))) {
     $user = checkAdminAuth(false);
-    $isDemo = ($user === 'demo' || ($_SESSION['role'] ?? '') === 'demo' || !empty($_SESSION['is_readonly']));
+    $role = $_SESSION['role'] ?? 'admin';
+    $name = $_SESSION['name'] ?? ucfirst($user ?: 'User');
+    $kioskName = $_SESSION['kiosk_name'] ?? '';
+    $isDemo = ($user === 'demo' || $role === 'demo' || !empty($_SESSION['is_readonly']));
+
     session_write_close();
+
     if ($user) {
+        $roleLabels = array(
+            'owner' => 'Owner',
+            'admin' => 'Administrator',
+            'manager' => 'Manager Operasional',
+            'reseller' => 'Reseller Kios',
+            'staff_noc' => 'Staff NOC',
+            'finance' => 'Finance',
+            'demo' => 'Demo (Read Only)'
+        );
+
         jsonResponse(true, array(
             'authenticated' => true,
             'user' => $user,
-            'role' => $isDemo ? 'Demo (Read Only)' : 'Administrator',
+            'name' => $name,
+            'role' => $role,
+            'role_label' => $roleLabels[$role] ?? ucfirst($role),
+            'kiosk_name' => $kioskName,
             'is_readonly' => $isDemo,
             'session_id' => session_id()
         ), 'Authenticated');
@@ -43,7 +75,7 @@ if ($action === 'check' || ($method === 'GET' && empty($action))) {
 
 // 2. LOGIN
 if ($action === 'login' || ($method === 'POST' && (isset($body['user']) || isset($_POST['user'])))) {
-    $user = trim($body['user'] ?? $_POST['user'] ?? '');
+    $user = strtolower(trim($body['user'] ?? $_POST['user'] ?? ''));
     $pass = trim($body['pass'] ?? $_POST['pass'] ?? '');
 
     if (empty($user) || empty($pass)) {
@@ -51,45 +83,92 @@ if ($action === 'login' || ($method === 'POST' && (isset($body['user']) || isset
         jsonResponse(false, null, 'Username dan password wajib diisi', 400);
     }
 
-    $useradm = explode('<|<', $data['mikhmon'][1] ?? '')[1] ?? 'admin';
-    $passadm = explode('>|>', $data['mikhmon'][2] ?? '')[1] ?? '';
-    $decryptedPass = decrypt($passadm);
+    $allUsers = getSystemUsers($usersFile);
+    $matchedUser = null;
+    $matchedIdx = -1;
 
-    $isAdminValid = (
-        ($user === $useradm || $user === 'admin' || $user === 'mikhmon') &&
-        ($pass === $decryptedPass || $pass === '1234')
-    );
+    for ($i = 0; $i < count($allUsers); $i++) {
+        if (strtolower($allUsers[$i]['username'] ?? '') === $user) {
+            $matchedUser = $allUsers[$i];
+            $matchedIdx = $i;
+            break;
+        }
+    }
 
-    $isDemoValid = ($user === 'demo' && $pass === 'demo');
+    $loginSuccess = false;
+    $authRole = 'admin';
+    $authName = ucfirst($user);
+    $authKiosk = '';
 
-    if ($isAdminValid) {
+    if ($matchedUser) {
+        if (($matchedUser['status'] ?? 'active') === 'inactive') {
+            session_write_close();
+            jsonResponse(false, null, 'Akun Anda dinonaktifkan. Silakan hubungi Administrator.', 403);
+        }
+
+        $hash = $matchedUser['password_hash'] ?? '';
+        $plain = $matchedUser['password_plain'] ?? '';
+
+        if (password_verify($pass, $hash) || $pass === $plain) {
+            $loginSuccess = true;
+            $authRole = $matchedUser['role'] ?? 'admin';
+            $authName = $matchedUser['name'] ?? ucfirst($user);
+            $authKiosk = $matchedUser['kiosk_name'] ?? '';
+
+            // Update last_login
+            $allUsers[$matchedIdx]['last_login'] = date('Y-m-d H:i:s');
+            updateSystemUsers($usersFile, $allUsers);
+        }
+    }
+
+    // Fallback check for legacy config admin credentials
+    if (!$loginSuccess) {
+        $useradm = explode('<|<', $data['mikhmon'][1] ?? '')[1] ?? 'admin';
+        $passadm = explode('>|>', $data['mikhmon'][2] ?? '')[1] ?? '';
+        $decryptedPass = decrypt($passadm);
+
+        if (($user === strtolower($useradm) || $user === 'admin') && ($pass === $decryptedPass || $pass === '1234')) {
+            $loginSuccess = true;
+            $authRole = 'owner';
+            $authName = 'Administrator Utama';
+        } elseif ($user === 'demo' && $pass === 'demo') {
+            $loginSuccess = true;
+            $authRole = 'demo';
+            $authName = 'Pengguna Demo';
+        }
+    }
+
+    if ($loginSuccess) {
+        $isDemo = ($authRole === 'demo');
         $_SESSION['pacenet_user'] = $user;
         $_SESSION['mikhmon'] = $user;
-        $_SESSION['role'] = 'admin';
-        $_SESSION['is_readonly'] = false;
+        $_SESSION['role'] = $authRole;
+        $_SESSION['name'] = $authName;
+        $_SESSION['kiosk_name'] = $authKiosk;
+        $_SESSION['is_readonly'] = $isDemo;
         $_SESSION['timezone'] = 'Asia/Jayapura';
         session_write_close();
+
+        $roleLabels = array(
+            'owner' => 'Owner',
+            'admin' => 'Administrator',
+            'manager' => 'Manager Operasional',
+            'reseller' => 'Reseller Kios',
+            'staff_noc' => 'Staff NOC',
+            'finance' => 'Finance',
+            'demo' => 'Demo (Read Only)'
+        );
+
         jsonResponse(true, array(
             'authenticated' => true,
             'user' => $user,
-            'role' => 'Administrator',
-            'is_readonly' => false,
-            'token' => 'pacenet_session_active'
+            'name' => $authName,
+            'role' => $authRole,
+            'role_label' => $roleLabels[$authRole] ?? ucfirst($authRole),
+            'kiosk_name' => $authKiosk,
+            'is_readonly' => $isDemo,
+            'token' => $isDemo ? 'pacenet_session_demo' : 'pacenet_session_active'
         ), 'Login berhasil');
-    } elseif ($isDemoValid) {
-        $_SESSION['pacenet_user'] = 'demo';
-        $_SESSION['mikhmon'] = 'demo';
-        $_SESSION['role'] = 'demo';
-        $_SESSION['is_readonly'] = true;
-        $_SESSION['timezone'] = 'Asia/Jayapura';
-        session_write_close();
-        jsonResponse(true, array(
-            'authenticated' => true,
-            'user' => 'demo',
-            'role' => 'Demo (Read Only)',
-            'is_readonly' => true,
-            'token' => 'pacenet_session_demo'
-        ), 'Login berhasil sebagai pengguna Demo (Read Only)');
     } else {
         session_write_close();
         jsonResponse(false, null, 'Username atau password salah', 401);
