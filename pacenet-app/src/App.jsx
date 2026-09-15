@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
@@ -70,12 +70,16 @@ export default function App() {
     checkAuth();
   }, []);
 
+  const isFetchingRef = useRef(false);
+
   // 2. Fetch Multi-Router Live Data
   const fetchRouterStats = useCallback(async () => {
     if (!isAuthenticated) return;
-    // Reseller or Finance do not need periodic 5s live router stats polling
+    // Reseller or Finance do not need periodic live router stats polling
     if (userRole === 'reseller' || userRole === 'finance') return;
+    if (isFetchingRef.current) return; // Prevent concurrent requests when high traffic causes longer response
 
+    isFetchingRef.current = true;
     setIsRefreshing(true);
     try {
       const res = await fetch('/api/routers.php');
@@ -88,15 +92,16 @@ export default function App() {
     } catch (e) {
       console.error('Failed to load router live stats', e);
     } finally {
+      isFetchingRef.current = false;
       setIsRefreshing(false);
     }
   }, [isAuthenticated, userRole]);
 
-  // Initial & periodic polling
+  // Initial & periodic polling (10s interval to prevent API saturation during heavy 300+ Mbps traffic)
   useEffect(() => {
     if (isAuthenticated && userRole !== 'reseller' && userRole !== 'finance') {
       fetchRouterStats();
-      const interval = setInterval(fetchRouterStats, 5000); // 5s live polling
+      const interval = setInterval(fetchRouterStats, 10000); // 10s live polling
       return () => clearInterval(interval);
     }
   }, [isAuthenticated, userRole, fetchRouterStats]);

@@ -145,11 +145,18 @@ if ($iptOut && preg_match_all('/--dport\s+([0-9]+).*?-j\s+DNAT\s+--to-destinatio
     }
 }
 
-function checkPortOpen($ip, $port = 8728, $timeout = 0.35) {
+function checkPortOpen($ip, $port = 8728, $timeout = 1.2) {
     if (empty($ip)) return false;
     $fp = @fsockopen($ip, $port, $errno, $errstr, $timeout);
     if ($fp) {
         fclose($fp);
+        return true;
+    }
+    // High-traffic jitter retry (100ms pause) to avoid false offline flaps on Papua links
+    usleep(100000);
+    $fp2 = @fsockopen($ip, $port, $errno, $errstr, $timeout);
+    if ($fp2) {
+        fclose($fp2);
         return true;
     }
     return false;
@@ -180,7 +187,7 @@ foreach ($data as $sessName => $cfg) {
     }
     $winboxAddr = $publicIp . ':' . $rWinboxPort;
 
-    $isOnline = checkPortOpen($ip, 8728, 0.35);
+    $isOnline = checkPortOpen($ip, 8728, 1.2);
 
     $dnsName = explode('^', $cfg[5] ?? '')[1] ?? 'hotspot.yunus';
     $currency = explode('&', $cfg[6] ?? '')[1] ?? 'Rp';
@@ -212,8 +219,8 @@ foreach ($data as $sessName => $cfg) {
     if ($isOnline) {
         $routersOnline++;
         $api = new RouterosAPI();
-        $api->timeout = 2;
-        $api->attempts = 1;
+        $api->timeout = 3;
+        $api->attempts = 2;
         $api->debug = false;
 
         if ($api->connect($ip, $user, $pass)) {
