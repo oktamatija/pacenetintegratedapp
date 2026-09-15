@@ -144,11 +144,18 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <button 
               className="btn btn-secondary btn-sm"
-              onClick={() => onNavigate('user_profiles')}
-              title="Kembali ke User Profiles"
+              onClick={() => onNavigate('generate')}
+              title="Kembali ke Generator Voucher"
             >
               <ArrowLeft size={14} />
-              <span>User Profiles</span>
+              <span>Generator Voucher</span>
+            </button>
+            <button 
+              className="btn btn-secondary btn-sm"
+              onClick={() => onNavigate('vouchers')}
+              title="Buka Manajemen Vouchers Hub"
+            >
+              <span>Vouchers Hub</span>
             </button>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
