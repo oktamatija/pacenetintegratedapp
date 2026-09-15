@@ -29,6 +29,9 @@ foreach ($data as $sessKey => $cfg) {
 $db = new SQLite3($dbPath, SQLITE3_OPEN_READONLY);
 $db->busyTimeout(3000);
 
+// Ensure index exists for high-speed queries
+$db->exec("CREATE INDEX IF NOT EXISTS idx_sess_iface_ts ON traffic_samples(session, interface, timestamp)");
+
 $router = $_GET['router'] ?? 'all';
 $iface = $_GET['iface'] ?? 'all';
 $period = $_GET['period'] ?? 'hourly';
@@ -51,8 +54,8 @@ if ($period === 'hourly') {
         $label = date('H:i', $tEnd);
         $buckets[] = array('start' => $tStart, 'end' => $tEnd, 'label' => $label, 'period_label' => date('H:i', $tStart) . ' - ' . date('H:i', $tEnd));
     }
-    $divisor = 1024 * 1024; // MB
-    $unit = 'MB';
+    $divisor = 1024 * 1024 * 1024; // GB for clean numbers in high-capacity broadband
+    $unit = 'GB';
 } elseif ($period === 'daily') {
     // 30 days
     for ($i = 29; $i >= 0; $i--) {
@@ -97,12 +100,17 @@ if ($period === 'hourly') {
 }
 
 $whereClauses = array();
-if ($router !== 'all') {
-    $whereClauses[] = "router = '" . SQLite3::escapeString($router) . "'";
+if ($router !== 'all' && !empty($router)) {
+    $whereClauses[] = "session = '" . SQLite3::escapeString($router) . "'";
 }
-if ($iface !== 'all') {
+
+// Interface filter: default to WAN (ether1 on MikroTik, or non-bridge/non-loopback/non-wg)
+if ($iface !== 'all' && !empty($iface)) {
     $whereClauses[] = "interface = '" . SQLite3::escapeString($iface) . "'";
+} else {
+    $whereClauses[] = "(interface = 'ether1' OR (interface NOT LIKE 'bridge%' AND interface NOT LIKE 'wg%' AND interface != 'lo' AND interface NOT LIKE 'Vlan%'))";
 }
+
 $baseWhere = count($whereClauses) > 0 ? " AND " . implode(" AND ", $whereClauses) : "";
 
 foreach ($configuredRouters as $rKey => $rName) {
@@ -114,10 +122,10 @@ foreach ($configuredRouters as $rKey => $rName) {
 
 foreach ($buckets as $b) {
     $categories[] = $b['label'];
-    $q = "SELECT router, SUM(rx_delta) as tot_rx, SUM(tx_delta) as tot_tx 
+    $q = "SELECT session, SUM(delta_rx) as tot_rx, SUM(delta_tx) as tot_tx 
           FROM traffic_samples 
           WHERE timestamp >= {$b['start']} AND timestamp <= {$b['end']} {$baseWhere}
-          GROUP BY router";
+          GROUP BY session";
     $res = $db->query($q);
 
     $bRx = 0;
@@ -130,7 +138,7 @@ foreach ($buckets as $b) {
             $rTx = floatval($row['tot_tx'] ?? 0);
             $bRx += $rRx;
             $bTx += $rTx;
-            $routerValues[$row['router']] = ($rRx + $rTx);
+            $routerValues[$row['session']] = ($rRx + $rTx);
         }
     }
 

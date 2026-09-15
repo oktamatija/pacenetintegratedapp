@@ -242,16 +242,18 @@ print("\nNginx test & reload:", flush=True)
 print(stdout.read().decode('utf-8'), flush=True)
 print(stderr.read().decode('utf-8'), flush=True)
 
-# 7. Set correct permissions and enable Watchdog Expire cron
-_, stdout, _ = ssh.exec_command("chown -R nginx:nginx /var/www/pacenetintegratedapp && chmod -R 755 /var/www/pacenetintegratedapp/app /var/www/pacenetintegratedapp/api && chmod +x /var/www/pacenetintegratedapp/api/watchdog_expire.php")
+# 7. Set correct permissions and enable Watchdog Expire & Traffic Collector crons
+_, stdout, _ = ssh.exec_command("chown -R nginx:nginx /var/www/pacenetintegratedapp && chmod -R 755 /var/www/pacenetintegratedapp/app /var/www/pacenetintegratedapp/api /var/www/pacenetintegratedapp/traffic && chmod +x /var/www/pacenetintegratedapp/api/watchdog_expire.php /var/www/pacenetintegratedapp/traffic/collect_traffic.php")
 stdout.channel.recv_exit_status()
 
 cron_setup = """
-(crontab -l 2>/dev/null | grep -v 'watchdog_expire.php'; echo "* * * * * /usr/bin/php /var/www/pacenetintegratedapp/api/watchdog_expire.php >/dev/null 2>&1") | crontab -
+(crontab -l 2>/dev/null | grep -v 'watchdog_expire.php' | grep -v 'collect_traffic.php'; 
+echo "* * * * * /usr/bin/php /var/www/pacenetintegratedapp/api/watchdog_expire.php >/dev/null 2>&1";
+echo "*/5 * * * * /usr/bin/php /var/www/pacenetintegratedapp/traffic/collect_traffic.php >/dev/null 2>&1") | crontab -
 """
 _, stdout, _ = ssh.exec_command(cron_setup)
 stdout.channel.recv_exit_status()
-print("Watchdog Expire cron configured and active (every 1 min).", flush=True)
+print("Watchdog Expire (every 1m) and Traffic Collector (every 5m) crons active.", flush=True)
 
 ssh.close()
 print("\nPACENET PRO deployed and operational at https://hy0045.my.id/app/ !", flush=True)
