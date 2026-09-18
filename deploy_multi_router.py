@@ -38,10 +38,12 @@ if os.path.exists(hl_dir):
     for f in os.listdir(hl_dir):
         files_to_sync.append((os.path.join(hl_dir, f), f'{remote_root}/hotspot-login/{f}'))
 
-# Add Data directory files
+# Add Data directory files (Exclude runtime dynamic data)
 data_dir = os.path.join(local_pacenet, 'data')
 if os.path.exists(data_dir):
     for f in os.listdir(data_dir):
+        if f in ['pending_routers.json', 'traffic_history.db', 'reseller_sales.json']:
+            continue
         files_to_sync.append((os.path.join(data_dir, f), f'{remote_root}/data/{f}'))
 
 # Add App build directory files recursively
@@ -123,7 +125,7 @@ cat << 'EOF' > /etc/nginx/conf.d/pacenet.conf
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name hy0045.my.id 202.10.46.222 _;
+    server_name hi1271.my.id 202.10.47.76 _;
     root /var/www/pacenetintegratedapp;
     index index.php index.html;
 
@@ -154,7 +156,7 @@ server {
 
     # Redirect all other HTTP requests to HTTPS domain
     location / {
-        return 301 https://hy0045.my.id$request_uri;
+        return 301 https://hi1271.my.id$request_uri;
     }
 }
 
@@ -188,16 +190,16 @@ server {
     }
 }
 
-# HTTPS Server (Port 443) - hy0045.my.id
+# HTTPS Server (Port 443) - hi1271.my.id
 server {
     listen 443 ssl http2 default_server;
     listen [::]:443 ssl http2 default_server;
-    server_name hy0045.my.id;
+    server_name hi1271.my.id;
     root /var/www/pacenetintegratedapp;
     index index.php index.html;
 
-    ssl_certificate /etc/letsencrypt/live/hy0045.my.id/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/hy0045.my.id/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/hi1271.my.id/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/hi1271.my.id/privkey.pem;
 
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
@@ -206,8 +208,8 @@ server {
     ssl_session_timeout 10m;
 
     # If accessing by IP over HTTPS, redirect to domain
-    if ($host != "hy0045.my.id") {
-        return 301 https://hy0045.my.id$request_uri;
+    if ($host != "hi1271.my.id") {
+        return 301 https://hi1271.my.id$request_uri;
     }
 
     # Modern React SPA at /app/
@@ -243,9 +245,9 @@ EOF
 _, stdout, _ = ssh.exec_command(nginx_conf_cmd)
 stdout.channel.recv_exit_status()
 
-# 6. Test Nginx and reload
-_, stdout, stderr = ssh.exec_command("nginx -t && systemctl reload nginx")
-print("\nNginx test & reload:", flush=True)
+# 6. Test Nginx and restart php-fpm & reload nginx
+_, stdout, stderr = ssh.exec_command("systemctl restart php-fpm && nginx -t && systemctl reload nginx")
+print("\nPHP-FPM restart & Nginx reload:", flush=True)
 print(stdout.read().decode('utf-8'), flush=True)
 print(stderr.read().decode('utf-8'), flush=True)
 
@@ -263,4 +265,4 @@ stdout.channel.recv_exit_status()
 print("Watchdog Expire (every 1m) and Traffic Collector (every 5m) crons active.", flush=True)
 
 ssh.close()
-print("\nPACENET PRO deployed and operational at https://hy0045.my.id/app/ !", flush=True)
+print("\nPACENET PRO deployed and operational at https://hi1271.my.id/app/ !", flush=True)

@@ -19,7 +19,8 @@ import {
   UserCog,
   Crown,
   Shield,
-  Briefcase
+  Briefcase,
+  Globe
 } from 'lucide-react';
 
 export default function Sidebar({ 
@@ -60,6 +61,7 @@ export default function Sidebar({
       roles: ['owner', 'admin', 'manager', 'demo'],
       items: [
         { id: 'user_profiles', label: 'User Profiles', icon: Layers, badge: 'Paket' },
+        { id: 'hotspot_portal', label: 'Halaman Login Hotspot', icon: Globe, badge: 'Portal' },
         { id: 'vouchers', label: 'User / Voucher List', icon: Users, badge: 'Kelola' },
         { id: 'generate', label: 'Batch Generator', icon: PlusCircle },
         { id: 'print', label: 'Quick Print', icon: Printer }

@@ -255,6 +255,55 @@ foreach ($routerSessions as $rSession) {
 
     $api->disconnect();
 }
+// -------------------------------------------------------------------------
+// 3. ZERO-TOUCH PENDING ROUTERS 60-SECOND AUTO-PURGE
+// -------------------------------------------------------------------------
+$pendingDataFile = '/var/www/pacenetintegratedapp/data/pending_routers.json';
+if (file_exists($pendingDataFile)) {
+    $rawPending = @file_get_contents($pendingDataFile);
+    $pendingList = json_decode($rawPending, true) ?: array();
+    $cleanedPending = array();
+    $pChanged = false;
+    $now = time();
+    $purgedCount = 0;
+
+    foreach ($pendingList as $p) {
+        $cTime = !empty($p['created_at']) ? strtotime($p['created_at']) : $now;
+        $age = $now - $cTime;
+        $ip = $p['vpn_ip'] ?? '';
+        $pub = $p['pubkey'] ?? '';
+        $isOnline = false;
+
+        if (!empty($ip)) {
+            $fp = @fsockopen($ip, 8728, $e1, $e2, 0.5);
+            if ($fp) {
+                fclose($fp);
+                $isOnline = true;
+            } else {
+                @exec("ping -c 1 -W 1 " . escapeshellarg($ip) . " 2>/dev/null", $o, $r);
+                if ($r === 0) $isOnline = true;
+            }
+        }
+
+        // Purge if older than 60 seconds and not online
+        if ($age >= 60 && !$isOnline) {
+            if (!empty($pub)) {
+                @shell_exec("sudo /usr/bin/wg set wg0 peer " . escapeshellarg($pub) . " remove 2>/dev/null");
+            }
+            $pChanged = true;
+            $purgedCount++;
+            continue;
+        }
+
+        $cleanedPending[] = $p;
+    }
+
+    if ($pChanged) {
+        @file_put_contents($pendingDataFile, json_encode($cleanedPending, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        @shell_exec("sudo /usr/bin/wg-quick save wg0 2>/dev/null");
+        $results['stale_pending_routers_purged'] = $purgedCount;
+    }
+}
 
 $results['execution_time_ms'] = round((microtime(true) - $startTime) * 1000, 2);
 

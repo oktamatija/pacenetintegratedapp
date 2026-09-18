@@ -21,9 +21,9 @@ class RouterosAPI
     var $connected = false; //  Connection state
     var $port      = 8728;  //  Port to connect to (default 8729 for ssl)
     var $ssl       = false; //  Connect using SSL (must enable api-ssl in IP/Services)
-    var $timeout   = 3;     //  Connection attempt timeout and data read timeout
-    var $attempts  = 5;     //  Connection attempt count
-    var $delay     = 3;     //  Delay between connection attempts in seconds
+    var $timeout   = 1.5;   //  Connection attempt timeout and data read timeout (optimized for web API)
+    var $attempts  = 1;     //  Single connection attempt to prevent blocking PHP-FPM
+    var $delay     = 0;     //  No delay between attempts
 
     var $socket;            //  Variable for storing socket resource
     var $error_no;          //  Variable for storing connection error number, if any
@@ -132,7 +132,9 @@ class RouterosAPI
                 }
                 fclose($this->socket);
             }
-            sleep($this->delay);
+            if ($ATTEMPT < $this->attempts && $this->delay > 0) {
+                sleep($this->delay);
+            }
         }
 
         if ($this->connected) {

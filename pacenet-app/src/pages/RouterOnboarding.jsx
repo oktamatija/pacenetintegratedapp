@@ -13,8 +13,14 @@ import {
   ExternalLink,
   ShieldCheck,
   Zap,
-  ArrowRight
+  ArrowRight,
+  Edit3,
+  Key,
+  Eye,
+  EyeOff,
+  X
 } from 'lucide-react';
+import { authFetch, getAuthHeaders } from '../utils/api';
 
 export default function RouterOnboarding({ isReadOnly }) {
   const [data, setData] = useState(null);
@@ -26,9 +32,111 @@ export default function RouterOnboarding({ isReadOnly }) {
   const [actionLoading, setActionLoading] = useState(null);
   const [feedback, setFeedback] = useState(null);
 
+  // Edit Router Modal State
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editFeedback, setEditFeedback] = useState(null);
+  const [showPass, setShowPass] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const [editForm, setEditForm] = useState({
+    session: '',
+    new_session: '',
+    ip: '',
+    user: 'admin',
+    pass: '',
+    hotspot_name: '',
+    dns_name: 'hotspot.yunus',
+    currency: 'Rp'
+  });
+
+  const handleOpenEdit = (reg) => {
+    if (isReadOnly) {
+      alert('Akses Ditolak: Akun Demo berstatus Read-Only. Pengubahan kredensial router dinonaktifkan.');
+      return;
+    }
+    setEditForm({
+      session: reg.session,
+      new_session: reg.session,
+      ip: reg.ip,
+      user: reg.user || 'admin',
+      pass: '',
+      hotspot_name: reg.hotspot_name || reg.session,
+      dns_name: reg.dns_name || 'hotspot.yunus',
+      currency: reg.currency || 'Rp'
+    });
+    setTestResult(null);
+    setEditFeedback(null);
+    setShowPass(false);
+    setEditModalOpen(true);
+  };
+
+  const handleTestCredentials = async () => {
+    setTestResult({ loading: true });
+    try {
+      const res = await authFetch('/api/routers.php?action=test_credentials', {
+        method: 'POST',
+        body: JSON.stringify({
+          session: editForm.session,
+          ip: editForm.ip,
+          user: editForm.user,
+          pass: editForm.pass
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setTestResult({
+          success: true,
+          message: json.message || `Terhubung ke ${json.data?.board_name} (ROS v${json.data?.ros_version})`
+        });
+      } else {
+        setTestResult({
+          success: false,
+          message: json.message || 'Gagal terhubung ke router. Periksa IP, user, dan password.'
+        });
+      }
+    } catch (e) {
+      setTestResult({
+        success: false,
+        message: 'Koneksi ke API test router gagal.'
+      });
+    }
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (isReadOnly) {
+      setEditFeedback({ type: 'error', text: 'Akses Ditolak: Akun Demo berstatus Read-Only.' });
+      return;
+    }
+    setEditLoading(true);
+    setEditFeedback(null);
+
+    try {
+      const res = await authFetch('/api/routers.php?action=update_credentials', {
+        method: 'POST',
+        body: JSON.stringify(editForm)
+      });
+      const json = await res.json();
+      if (json.success) {
+        setEditModalOpen(false);
+        fetchOnboarding();
+        setFeedback({ type: 'success', text: json.message || 'Kredensial dan informasi router berhasil disimpan.' });
+      } else {
+        setEditFeedback({ type: 'error', text: json.message || 'Gagal menyimpan perubahan router.' });
+      }
+    } catch (e) {
+      setEditFeedback({ type: 'error', text: 'Terjadi kesalahan jaringan saat menyimpan perubahan.' });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const fetchOnboarding = async () => {
     try {
-      const res = await fetch('/api/onboarding.php');
+      const res = await fetch('/api/onboarding.php', {
+        credentials: 'include',
+        headers: getAuthHeaders()
+      });
       const json = await res.json();
       if (json.success) {
         setData(json.data);
@@ -47,8 +155,9 @@ export default function RouterOnboarding({ isReadOnly }) {
     return () => clearInterval(interval);
   }, []);
 
+  const serverHost = window.location.hostname || 'hi1271.my.id';
   const bootstrapCmd = data?.bootstrap_command || 
-    '/tool fetch url="http://202.10.46.222/join.php?action=bootstrap" mode=http dst-path=join.rsc; :delay 2s; /import join.rsc; /file remove join.rsc';
+    `/tool fetch url="http://${serverHost}:8080/join.php" mode=http dst-path=join.rsc; :delay 2s; /import join.rsc; /file remove join.rsc`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(bootstrapCmd);
@@ -89,7 +198,8 @@ export default function RouterOnboarding({ isReadOnly }) {
     try {
       const res = await fetch('/api/onboarding.php?action=accept', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           identity: router.identity,
           vpn_ip: router.vpn_ip,
@@ -125,7 +235,8 @@ export default function RouterOnboarding({ isReadOnly }) {
     try {
       const res = await fetch('/api/onboarding.php?action=reject', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           identity: router.identity,
           vpn_ip: router.vpn_ip
@@ -152,7 +263,8 @@ export default function RouterOnboarding({ isReadOnly }) {
     try {
       const res = await fetch('/api/onboarding.php?action=delete_registered', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: getAuthHeaders(),
         body: JSON.stringify({ session: sessName })
       });
       const json = await res.json();
@@ -387,9 +499,15 @@ export default function RouterOnboarding({ isReadOnly }) {
                       <span className="tag tag-purple">{r.model || 'MikroTik'}</span>
                       <span className="tag tag-cyan">{r.version || 'RouterOS'}</span>
                       <span className={`tag ${r.online ? 'tag-emerald' : 'tag-rose'}`}>
-                        {r.online ? 'API READY' : 'OFFLINE'}
+                        {r.online ? 'ONLINE (SIAP DIHUBUNGKAN)' : (r.expires_in !== undefined && r.expires_in > 0 ? `MENUNGGU (${r.expires_in}s)` : 'OFFLINE')}
                       </span>
                     </div>
+                  </div>
+
+                  {/* Helper note for password & interface */}
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sparkles size={13} color="var(--accent-cyan)" />
+                    <span>Kosongkan kata sandi jika router baru/default pabrik. Konfigurasi RADIUS Client & Hotspot Profile akan disetup otomatis.</span>
                   </div>
 
                   {/* Input Form for Router Credentials */}
@@ -417,11 +535,11 @@ export default function RouterOnboarding({ isReadOnly }) {
 
                     <div>
                       <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                        Password Router
+                        Password Router (Kosong = Default)
                       </label>
                       <input
                         type="password"
-                        placeholder="Kata sandi admin..."
+                        placeholder="Kosong jika baru reset..."
                         className="filter-select"
                         style={{ width: '100%', padding: '6px 10px', fontSize: '12px' }}
                         value={getFormVal(r.identity, 'pass', '')}
@@ -458,7 +576,15 @@ export default function RouterOnboarding({ isReadOnly }) {
                     <button
                       className="btn btn-primary btn-sm"
                       onClick={() => handleAccept(r)}
-                      disabled={isBusy || !r.online}
+                      disabled={isBusy}
+                      style={{
+                        background: r.online 
+                          ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
+                          : 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                        borderColor: r.online ? '#10b981' : '#0ea5e9',
+                        fontWeight: 700,
+                        boxShadow: r.online ? '0 0 12px rgba(16, 185, 129, 0.4)' : 'none'
+                      }}
                     >
                       {isBusy ? (
                         <>
@@ -503,36 +629,286 @@ export default function RouterOnboarding({ isReadOnly }) {
               </tr>
             </thead>
             <tbody>
-              {registeredList.map((reg, idx) => (
-                <tr key={idx}>
-                  <td>
-                    <span className={`pulse-dot ${reg.online ? '' : 'offline'}`} />
-                  </td>
-                  <td style={{ fontWeight: 700, color: '#fff' }}>
-                    {reg.hotspot_name}
-                  </td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-muted)' }}>
-                    {reg.session}
-                  </td>
-                  <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>
-                    {reg.ip}
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button
-                      className="btn btn-danger btn-sm"
-                      onClick={() => handleDeleteRegistered(reg.session)}
-                      title="Hapus Sesi Router"
-                    >
-                      <Trash2 size={13} />
-                      <span>Hapus Sesi</span>
-                    </button>
+              {registeredList.length === 0 ? (
+                <tr>
+                  <td colSpan="5" style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--text-muted)' }}>
+                    <Server size={32} style={{ color: 'var(--accent-cyan)', margin: '0 auto 8px', opacity: 0.5 }} />
+                    <div style={{ fontWeight: 600, color: '#fff', fontSize: '13.5px' }}>Belum ada router yang terdaftar di sistem</div>
+                    <div style={{ fontSize: '12px', marginTop: '4px', color: 'var(--text-secondary)' }}>
+                      Jalankan perintah CLI Zero-Touch di atas pada New Terminal MikroTik untuk menghubungkan router baru secara otomatis.
+                    </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                registeredList.map((reg, idx) => (
+                  <tr key={idx}>
+                    <td>
+                      <span className={`pulse-dot ${reg.online ? '' : 'offline'}`} />
+                    </td>
+                    <td style={{ fontWeight: 700, color: '#fff' }}>
+                      {reg.hotspot_name}
+                    </td>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-muted)' }}>
+                      {reg.session}
+                    </td>
+                    <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>
+                      {reg.ip}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleOpenEdit(reg)}
+                          style={{ padding: '6px 12px', color: 'var(--accent-cyan)', borderColor: 'rgba(0, 210, 211, 0.3)' }}
+                          title="Edit Informasi & Kredensial Router"
+                        >
+                          <Edit3 size={13} />
+                          <span>Edit Router</span>
+                        </button>
+                        <button
+                          className="btn btn-danger btn-sm"
+                          onClick={() => handleDeleteRegistered(reg.session)}
+                          title="Hapus Sesi Router"
+                        >
+                          <Trash2 size={13} />
+                          <span>Hapus Sesi</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* MODAL: EDIT ROUTER */}
+      {editModalOpen && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 60,
+          padding: '20px'
+        }}>
+          <div className="glass-card" style={{
+            width: '100%',
+            maxWidth: '520px',
+            padding: '24px',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--border-active)',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Key size={18} color="var(--accent-cyan)" />
+                <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#fff' }}>
+                  Edit Informasi Router: {editForm.session}
+                </h3>
+              </div>
+              <button 
+                onClick={() => setEditModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {editFeedback && (
+              <div style={{
+                marginBottom: '14px',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'rgba(244, 63, 94, 0.12)',
+                border: '1px solid var(--accent-rose)',
+                color: '#fb7185',
+                fontSize: '12px'
+              }}>
+                {editFeedback.text}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEdit}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Nama Sesi Router * (ID Unik Sistem)
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={editForm.new_session}
+                    onChange={e => setEditForm({ ...editForm, new_session: e.target.value })}
+                    required
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      IP Address MikroTik / VPN *
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={editForm.ip}
+                      onChange={e => setEditForm({ ...editForm, ip: e.target.value })}
+                      required
+                      placeholder="10.10.10.4"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      User API MikroTik *
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={editForm.user}
+                      onChange={e => setEditForm({ ...editForm, user: e.target.value })}
+                      required
+                      placeholder="admin"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Password Baru MikroTik (Kosongkan jika tidak ingin mengubah)
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPass ? 'text' : 'password'}
+                      className="input-field"
+                      value={editForm.pass}
+                      onChange={e => setEditForm({ ...editForm, pass: e.target.value })}
+                      placeholder="Masukkan password baru jika diubah"
+                      style={{ width: '100%', paddingRight: '36px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Nama Display Hotspot
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={editForm.hotspot_name}
+                      onChange={e => setEditForm({ ...editForm, hotspot_name: e.target.value })}
+                      placeholder="misal: Hotspot Sentral"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      DNS Name Hotspot
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={editForm.dns_name}
+                      onChange={e => setEditForm({ ...editForm, dns_name: e.target.value })}
+                      placeholder="hotspot.yunus"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Test Connection Button & Indicator */}
+                <div style={{
+                  padding: '12px',
+                  background: 'rgba(0,0,0,0.25)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Uji koneksi sebelum menyimpan:</span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={handleTestCredentials}
+                      disabled={testResult?.loading}
+                      style={{ padding: '4px 12px', fontSize: '12px' }}
+                    >
+                      <RefreshCw size={12} className={testResult?.loading ? 'spin-anim' : ''} />
+                      <span>{testResult?.loading ? 'Menguji...' : 'Test Koneksi API'}</span>
+                    </button>
+                  </div>
+
+                  {testResult && !testResult.loading && (
+                    <div style={{
+                      padding: '8px 10px',
+                      borderRadius: '4px',
+                      background: testResult.success ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)',
+                      color: testResult.success ? '#34d399' : '#fb7185',
+                      fontSize: '11.5px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      {testResult.success ? <ShieldCheck size={14} /> : <AlertTriangle size={14} />}
+                      <span>{testResult.message}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '6px' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary"
+                    onClick={() => setEditModalOpen(false)}
+                    disabled={editLoading}
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    disabled={editLoading}
+                    style={{
+                      background: 'linear-gradient(135deg, #00d2d3 0%, #0984e3 100%)',
+                      boxShadow: '0 0 12px var(--accent-cyan-glow)'
+                    }}
+                  >
+                    {editLoading ? 'Menyimpan...' : 'Simpan Kredensial'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

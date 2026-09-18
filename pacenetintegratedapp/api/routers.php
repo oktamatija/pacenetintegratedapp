@@ -13,16 +13,31 @@ if ($action === 'test_credentials') {
     $rawInput = json_decode(file_get_contents('php://input'), true) ?: $_POST;
     $testIp = trim($rawInput['ip'] ?? '');
     $testUser = trim($rawInput['user'] ?? 'admin');
-    $testPass = trim($rawInput['pass'] ?? '');
+    $testPass = (string)($rawInput['pass'] ?? '');
     $testPort = intval($rawInput['port'] ?? 8728) ?: 8728;
+    $session = trim($rawInput['session'] ?? '');
 
     if (empty($testIp)) {
         jsonResponse(false, null, 'IP Address router wajib diisi.');
     }
 
+    // If password is blank but session is given, try using existing stored password
+    if ($testPass === '' && !empty($session) && !empty($data[$session])) {
+        $oldEncPass = explode('#|#', $data[$session][3] ?? '')[1] ?? '';
+        $testPass = decrypt($oldEncPass);
+    }
+
+    // Fast port pre-check to prevent blocking
+    $sock = @fsockopen($testIp, $testPort, $errno, $errstr, 0.8);
+    if (!$sock) {
+        jsonResponse(false, null, "Gagal terhubung ke {$testIp}:{$testPort} (Port tidak merespons / Offline). Pastikan IP dan service API MikroTik aktif.");
+    }
+    fclose($sock);
+
     $tApi = new RouterosAPI();
-    $tApi->timeout = 3;
+    $tApi->timeout = 1.5;
     $tApi->attempts = 1;
+    $tApi->delay = 0;
     $tApi->debug = false;
     $tApi->port = $testPort;
 
@@ -36,24 +51,24 @@ if ($action === 'test_credentials') {
             'ros_version' => $ver
         ), "Koneksi berhasil! Terhubung ke {$board} (ROS v{$ver}).");
     } else {
-        jsonResponse(false, null, "Gagal terhubung ke {$testIp}:{$testPort}. Pastikan IP, user, password, dan service API MikroTik aktif.");
+        jsonResponse(false, null, "Gagal login ke {$testIp}:{$testPort}. Pastikan username & password API MikroTik sesuai.");
     }
 }
 
 // Guard mutating actions against read-only demo user
-if (in_array($action, array('update_credentials', 'delete_router', 'add_router', 'delete'))) {
+if (in_array($action, array('update_credentials', 'edit_router', 'delete_router', 'add_router', 'delete'))) {
     checkWritePermission();
 }
 
 // ACTION: UPDATE CREDENTIALS / CONFIG
-if ($action === 'update_credentials') {
+if ($action === 'update_credentials' || $action === 'edit_router') {
     $rawInput = json_decode(file_get_contents('php://input'), true) ?: $_POST;
     $session = trim($rawInput['session'] ?? '');
     $newSession = trim($rawInput['new_session'] ?? $session);
     $newSession = preg_replace('/[^a-zA-Z0-9_\-]/', '', $newSession);
     $ip = trim($rawInput['ip'] ?? '');
     $user = trim($rawInput['user'] ?? 'admin');
-    $pass = $rawInput['pass'] ?? '';
+    $pass = (string)($rawInput['pass'] ?? '');
     $hsName = trim($rawInput['hotspot_name'] ?? $newSession);
     $dnsName = trim($rawInput['dns_name'] ?? 'hotspot.yunus');
     $currency = trim($rawInput['currency'] ?? 'Rp');
@@ -62,18 +77,28 @@ if ($action === 'update_credentials') {
         jsonResponse(false, null, 'Session name dan IP router wajib diisi.');
     }
 
-    $cfgFile = '/var/www/pacenetintegratedapp/include/config.php';
-    if (!file_exists($cfgFile)) $cfgFile = __DIR__ . '/../include/config.php';
-    if (!file_exists($cfgFile)) {
-        jsonResponse(false, null, 'File config.php tidak ditemukan.');
-    }
+    $cfgPaths = array(
+        '/var/www/pacenetintegratedapp/include/config.php',
+        '/var/www/mikhmon/include/config.php',
+        __DIR__ . '/../include/config.php'
+    );
 
     $oldCfg = $data[$session] ?? null;
+    if (!$oldCfg) {
+        foreach ($data as $k => $v) {
+            if (strtolower($k) === strtolower($session)) {
+                $oldCfg = $v;
+                $session = $k;
+                break;
+            }
+        }
+    }
+
     if (!$oldCfg) {
         jsonResponse(false, null, "Sesi router '{$session}' tidak ditemukan dalam config.");
     }
 
-    // If password not passed, keep old encrypted pass
+    // If password not passed or empty, keep old encrypted pass
     if ($pass === '' || $pass === null) {
         $oldEncPass = explode('#|#', $oldCfg[3] ?? '')[1] ?? '';
     } else {
@@ -89,46 +114,111 @@ if ($action === 'update_credentials') {
     // Construct new session array line
     $newLine = "\$data['{$newSession}'] = array ('1'=>'{$newSession}!{$ip}','{$newSession}@|@{$user}','{$newSession}#|#{$oldEncPass}','{$newSession}%{$hsName}','{$newSession}^{$dnsName}','{$newSession}&{$currency}','{$newSession}*{$autoReload}','{$newSession}({$idleTimeout}','{$newSession}){$liveTraffic}','{$newSession}={$trafficInt}','{$newSession}@!@{$telegram}');";
 
-    $content = file_get_contents($cfgFile);
-    // Replace existing session line
-    $pattern = "/\\\$data\['" . preg_quote($session, '/') . "'\]\s*=\s*array\s*\([^;]+\);/";
-    if (preg_match($pattern, $content)) {
-        $newContent = preg_replace($pattern, $newLine, $content, 1);
-    } else {
-        $newContent = rtrim($content) . "\n\n" . $newLine . "\n";
+    $updatedAny = false;
+    foreach (array_unique($cfgPaths) as $cfgFile) {
+        if (!file_exists($cfgFile)) continue;
+        $content = file_get_contents($cfgFile);
+        $pattern = "/\\\$data\[['\"]" . preg_quote($session, '/') . "['\"]\]\s*=\s*array\s*\([^;]+\);/i";
+        if (preg_match($pattern, $content)) {
+            $newContent = preg_replace($pattern, $newLine, $content, 1);
+        } else {
+            $newContent = rtrim($content) . "\n\n" . $newLine . "\n";
+        }
+        file_put_contents($cfgFile, $newContent);
+        @chmod($cfgFile, 0664);
+        $updatedAny = true;
     }
 
-    file_put_contents($cfgFile, $newContent);
+    // If session renamed, also update pending_routers.json
+    $dataFile = '/var/www/pacenetintegratedapp/data/pending_routers.json';
+    if (!file_exists($dataFile)) $dataFile = __DIR__ . '/../data/pending_routers.json';
+    if (file_exists($dataFile)) {
+        $pending = json_decode(@file_get_contents($dataFile), true) ?: array();
+        $pMod = false;
+        foreach ($pending as &$p) {
+            if (($p['identity'] ?? '') === $session || ($p['vpn_ip'] ?? '') === $ip) {
+                $p['identity'] = $newSession;
+                $p['vpn_ip'] = $ip;
+                $pMod = true;
+            }
+        }
+        if ($pMod) {
+            @file_put_contents($dataFile, json_encode($pending, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        }
+    }
 
     jsonResponse(true, array(
         'session' => $newSession,
         'ip' => $ip,
         'user' => $user,
-        'hotspot_name' => $hsName
-    ), "Kredensial router '{$newSession}' berhasil diperbarui.");
+        'hotspot_name' => $hsName,
+        'dns_name' => $dnsName
+    ), "Kredensial dan informasi router '{$newSession}' berhasil diperbarui.");
 }
 
 // ACTION: DELETE ROUTER
-if ($action === 'delete_router') {
+if ($action === 'delete_router' || $action === 'delete') {
     $rawInput = json_decode(file_get_contents('php://input'), true) ?: $_POST;
     $session = trim($rawInput['session'] ?? '');
 
-    if (empty($session)) {
-        jsonResponse(false, null, 'Parameter session tidak boleh kosong.');
+    if (empty($session) || strtolower($session) === 'mikhmon') {
+        jsonResponse(false, null, 'Parameter session tidak boleh kosong atau mikhmon.');
     }
 
-    $cfgFile = '/var/www/pacenetintegratedapp/include/config.php';
-    if (!file_exists($cfgFile)) $cfgFile = __DIR__ . '/../include/config.php';
+    $cfgPaths = array(
+        '/var/www/pacenetintegratedapp/include/config.php',
+        '/var/www/mikhmon/include/config.php',
+        __DIR__ . '/../include/config.php'
+    );
 
-    $content = file_get_contents($cfgFile);
-    $pattern = "/\\\$data\['" . preg_quote($session, '/') . "'\]\s*=\s*array\s*\([^;]+\);\s*/";
-    if (preg_match($pattern, $content)) {
-        $newContent = preg_replace($pattern, '', $content);
-        file_put_contents($cfgFile, $newContent);
-        jsonResponse(true, array('session' => $session), "Router '{$session}' berhasil dihapus dari sistem billing.");
-    } else {
-        jsonResponse(false, null, "Sesi router '{$session}' tidak ditemukan.");
+    $deleted = false;
+    $deletedIp = '';
+
+    foreach (array_unique($cfgPaths) as $cfgFile) {
+        if (!file_exists($cfgFile)) continue;
+        $lines = file($cfgFile);
+        $newLines = array();
+
+        foreach ($lines as $line) {
+            if (preg_match("/\\\$data\['" . preg_quote($session, '/') . "'\]/i", $line) || 
+                preg_match("/\\\$data\[\"" . preg_quote($session, '/') . "\"\]/i", $line)) {
+                $deleted = true;
+                if (preg_match("/!([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/", $line, $ipM)) {
+                    $deletedIp = $ipM[1];
+                }
+                continue;
+            }
+            $newLines[] = $line;
+        }
+
+        if ($deleted) {
+            @file_put_contents($cfgFile, implode('', $newLines));
+        }
     }
+
+    if (!empty($deletedIp)) {
+        @shell_exec("sudo /usr/bin/wg set wg0 peer $(wg show wg0 allowed-ips 2>/dev/null | grep '{$deletedIp}/32' | awk '{print $1}') remove 2>/dev/null");
+        @shell_exec("sudo /usr/bin/wg-quick save wg0 2>/dev/null");
+    }
+
+    $dataFile = '/var/www/pacenetintegratedapp/data/pending_routers.json';
+    if (file_exists($dataFile)) {
+        $pending = json_decode(file_get_contents($dataFile), true) ?: array();
+        $updatedPending = array();
+        $pChanged = false;
+        foreach ($pending as $p) {
+            if (($p['identity'] ?? '') === $session || ($p['vpn_ip'] ?? '') === $deletedIp) {
+                $pChanged = true;
+                continue;
+            }
+            $updatedPending[] = $p;
+        }
+        if ($pChanged) {
+            @file_put_contents($dataFile, json_encode($updatedPending, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        }
+    }
+
+    jsonResponse(true, array('session' => $session), "Router '{$session}' berhasil dihapus dari sistem.");
 }
 
 $publicIp = '202.10.46.222';
@@ -145,18 +235,11 @@ if ($iptOut && preg_match_all('/--dport\s+([0-9]+).*?-j\s+DNAT\s+--to-destinatio
     }
 }
 
-function checkPortOpen($ip, $port = 8728, $timeout = 1.2) {
+function checkPortOpen($ip, $port = 8728, $timeout = 0.35) {
     if (empty($ip)) return false;
     $fp = @fsockopen($ip, $port, $errno, $errstr, $timeout);
     if ($fp) {
         fclose($fp);
-        return true;
-    }
-    // High-traffic jitter retry (100ms pause) to avoid false offline flaps on Papua links
-    usleep(100000);
-    $fp2 = @fsockopen($ip, $port, $errno, $errstr, $timeout);
-    if ($fp2) {
-        fclose($fp2);
         return true;
     }
     return false;

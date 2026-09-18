@@ -1,0 +1,25 @@
+{
+  "brand_name": "Cibi Cibi Hotspot",
+  "brand_subtitle": "WiFi Cepat, Stabil & Terjangkau",
+  "whatsapp_number": "+62 813-4401-0045",
+  "whatsapp_link": "https://wa.me/6281344010045?text=Halo%20Admin%20Cibi%20Cibi%20Hotspot,%20saya%20mau%20beli%20voucher",
+  "prices": [
+    {
+      "name": "12 Jam",
+      "cost": "Rp 4.000"
+    },
+    {
+      "name": "1 Minggu",
+      "cost": "Rp 40.000"
+    },
+    {
+      "name": "1 Bulan",
+      "cost": "Rp 100.000"
+    },
+    {
+      "name": "Reseller",
+      "cost": "Paket Khusus"
+    }
+  ],
+  "theme": "gradient_blue_amber"
+}

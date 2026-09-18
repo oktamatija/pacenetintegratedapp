@@ -54,7 +54,8 @@ export default function Dashboard({ data, isLoading, onNavigate, onRefresh, isRe
   const [deletingRouter, setDeletingRouter] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const bootstrapCmd = '/tool fetch url="http://202.10.46.222/join.php?action=bootstrap" mode=http dst-path=join.rsc; :delay 2s; /import join.rsc; /file remove join.rsc';
+  const serverHost = window.location.hostname || 'hi1271.my.id';
+  const bootstrapCmd = `/tool fetch url="http://${serverHost}:8080/join.php" mode=http dst-path=join.rsc; :delay 2s; /import join.rsc; /file remove join.rsc`;
 
   const handleCopyCmd = () => {
     navigator.clipboard.writeText(bootstrapCmd);
@@ -84,14 +85,23 @@ export default function Dashboard({ data, isLoading, onNavigate, onRefresh, isRe
     setEditModalOpen(true);
   };
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('pacenet_token');
+    const h = { 'Content-Type': 'application/json' };
+    if (token) h['Authorization'] = `Bearer ${token}`;
+    return h;
+  };
+
   // Live Test Credentials
   const handleTestCredentials = async () => {
     setTestResult({ loading: true });
     try {
       const res = await fetch('/api/routers.php?action=test_credentials', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: getAuthHeaders(),
         body: JSON.stringify({
+          session: editForm.session,
           ip: editForm.ip,
           user: editForm.user,
           pass: editForm.pass
@@ -130,7 +140,8 @@ export default function Dashboard({ data, isLoading, onNavigate, onRefresh, isRe
     try {
       const res = await fetch('/api/routers.php?action=update_credentials', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: getAuthHeaders(),
         body: JSON.stringify(editForm)
       });
       const json = await res.json();
@@ -170,7 +181,8 @@ export default function Dashboard({ data, isLoading, onNavigate, onRefresh, isRe
     try {
       const res = await fetch('/api/routers.php?action=delete_router', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: getAuthHeaders(),
         body: JSON.stringify({ session: deletingRouter.session })
       });
       const json = await res.json();
@@ -354,138 +366,160 @@ export default function Dashboard({ data, isLoading, onNavigate, onRefresh, isRe
         <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
           Kredensial router dapat diedit atau dihapus langsung melalui tombol pada kartu router.
         </span>
-      </div>
-
-      <div className="routers-grid">
-        {routers.map((r) => {
-          const isOnline = r.online;
-          return (
-            <div key={r.session} className={`glass-card router-card ${isOnline ? 'online' : 'offline'}`}>
-              {/* Header */}
-              <div className="router-header">
-                <div className="router-title">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className={`pulse-dot ${isOnline ? '' : 'offline'}`}></span>
-                    <h4>{r.hotspot_name}</h4>
+      </div>      {routers.length === 0 ? (
+        <div className="glass-card" style={{ 
+          textAlign: 'center', 
+          padding: '48px 24px', 
+          border: '1px dashed var(--border-active)',
+          borderRadius: 'var(--radius-lg)',
+          background: 'rgba(15, 23, 42, 0.4)'
+        }}>
+          <Server size={44} style={{ color: 'var(--accent-cyan)', margin: '0 auto 14px', opacity: 0.7 }} />
+          <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '8px' }}>
+            Belum Ada Router MikroTik Terhubung
+          </h4>
+          <p style={{ fontSize: '13px', maxWidth: '520px', margin: '0 auto 20px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+            Sistem Pacenet siap menerima koneksi router baru. Gunakan <strong>Zero-Touch Onboarding</strong> untuk menghubungkan router secara otomatis hanya dengan menjalankan satu perintah CLI di terminal MikroTik.
+          </p>
+          <button 
+            className="btn btn-primary"
+            onClick={() => onNavigate('onboarding')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
+          >
+            <Sparkles size={16} />
+            <span>Mulai Hubungkan Router Pertama</span>
+          </button>
+        </div>
+      ) : (
+        <div className="routers-grid">
+          {routers.map((r) => {
+            const isOnline = r.online;
+            return (
+              <div key={r.session} className={`glass-card router-card ${isOnline ? 'online' : 'offline'}`}>
+                {/* Header */}
+                <div className="router-header">
+                  <div className="router-title">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className={`pulse-dot ${isOnline ? '' : 'offline'}`}></span>
+                      <h4>{r.hotspot_name}</h4>
+                    </div>
+                    <p>{r.vpn_ip} • Sesi: <strong>{r.session}</strong></p>
                   </div>
-                  <p>{r.vpn_ip} • Sesi: <strong>{r.session}</strong></p>
+
+                  <span className={`tag ${isOnline ? 'tag-emerald' : 'tag-rose'}`}>
+                    {isOnline ? 'ONLINE' : 'OFFLINE'}
+                  </span>
                 </div>
 
-                <span className={`tag ${isOnline ? 'tag-emerald' : 'tag-rose'}`}>
-                  {isOnline ? 'ONLINE' : 'OFFLINE'}
-                </span>
-              </div>
-
-              {/* Hardware & Version */}
-              <div style={{ 
-                fontSize: '12px', 
-                color: 'var(--text-muted)', 
-                marginBottom: '10px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '6px'
-              }}>
-                <span><strong>Board:</strong> {r.board_name}</span>
-                <span><strong>ROS:</strong> {r.ros_version}</span>
-              </div>
-
-              {/* Key Metrics Row */}
-              <div className="router-stats-row">
-                <div className="stat-item">
-                  <span>Hotspot Aktif</span>
-                  <strong>{r.active_sessions} Sesi</strong>
+                {/* Hardware & Version */}
+                <div style={{ 
+                  fontSize: '12px', 
+                  color: 'var(--text-muted)', 
+                  marginBottom: '10px',
+                  display: 'flex',
+                  justifyContent: 'space-between'
+                }}>
+                  <span>Board: <strong>{r.board_name || 'MikroTik'}</strong></span>
+                  <span>ROS: <strong>v{r.ros_version || '-'}</strong></span>
                 </div>
-                <div className="stat-item">
-                  <span>Uptime</span>
-                  <strong style={{ fontSize: '12px' }}>{r.uptime}</strong>
-                </div>
-                <div className="stat-item">
-                  <span>CPU Load</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <strong>{r.cpu_load}%</strong>
-                    <div style={{ 
-                      flex: 1, 
-                      height: '4px', 
-                      background: 'rgba(255, 255, 255, 0.1)', 
-                      borderRadius: '2px',
-                      overflow: 'hidden'
-                    }}>
-                      <div style={{
-                        width: `${Math.min(r.cpu_load, 100)}%`,
-                        height: '100%',
-                        background: r.cpu_load > 80 ? 'var(--accent-rose)' : 'var(--accent-cyan)'
-                      }} />
+
+                {/* Live Stats */}
+                <div className="router-stats">
+                  <div className="stat-item">
+                    <span>Hotspot Aktif</span>
+                    <strong style={{ color: 'var(--accent-cyan)' }}>{r.active_sessions || 0} user</strong>
+                  </div>
+                  <div className="stat-item">
+                    <span>Uptime</span>
+                    <span>{r.uptime || '-'}</span>
+                  </div>
+                  <div className="stat-item">
+                    <span>CPU Load</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>{r.cpu_load || 0}%</span>
+                      <div style={{ 
+                        flex: 1, 
+                        height: '4px', 
+                        background: 'rgba(255, 255, 255, 0.1)', 
+                        borderRadius: '2px',
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          width: `${Math.min(r.cpu_load, 100)}%`,
+                          height: '100%',
+                          background: r.cpu_load > 80 ? 'var(--accent-rose)' : 'var(--accent-cyan)'
+                        }} />
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="stat-item">
-                  <span>Throughput Total</span>
-                  <strong style={{ fontSize: '11.5px', color: 'var(--accent-emerald)' }}>
-                    ↓{r.total_rx_human || '0 bps'}
-                  </strong>
-                </div>
-              </div>
-
-              {/* WAN Interfaces Traffic */}
-              {r.wan_interfaces && r.wan_interfaces.length > 0 && (
-                <div style={{ marginBottom: '14px' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600 }}>
-                    INTERFACE WAN DETECTED
+                  <div className="stat-item">
+                    <span>Throughput Total</span>
+                    <strong style={{ fontSize: '11.5px', color: 'var(--accent-emerald)' }}>
+                      ↓{r.total_rx_human || '0 bps'}
+                    </strong>
                   </div>
-                  {r.wan_interfaces.map((w, wIdx) => (
-                    <div key={wIdx} className="traffic-badge">
-                      <span style={{ color: 'var(--accent-cyan)' }}>{w.name}</span>
-                      <span style={{ color: 'var(--text-secondary)' }}>
-                        <span style={{ color: 'var(--accent-emerald)' }}>↓{w.rx_human}</span> &nbsp;
-                        <span style={{ color: 'var(--accent-blue)' }}>↑{w.tx_human}</span>
-                      </span>
-                    </div>
-                  ))}
                 </div>
-              )}
 
-              {/* Action Bar: Remote Winbox + Edit Kredensial + Hapus Router */}
-              <div style={{ 
-                marginTop: 'auto', 
-                paddingTop: '12px',
-                borderTop: '1px solid var(--border-subtle)',
-                display: 'flex',
-                gap: '8px'
-              }}>
-                <a 
-                  href={`winbox://${r.winbox_addr}`}
-                  className="btn btn-secondary btn-sm"
-                  style={{ flex: 1, justifyContent: 'center' }}
-                  title="Buka Winbox langsung"
-                >
-                  <ExternalLink size={13} />
-                  <span>Winbox ({r.winbox_addr})</span>
-                </a>
+                {/* WAN Interfaces Traffic */}
+                {r.wan_interfaces && r.wan_interfaces.length > 0 && (
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600 }}>
+                      INTERFACE WAN DETECTED
+                    </div>
+                    {r.wan_interfaces.map((w, wIdx) => (
+                      <div key={wIdx} className="traffic-badge">
+                        <span style={{ color: 'var(--accent-cyan)' }}>{w.name}</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>
+                          <span style={{ color: 'var(--accent-emerald)' }}>↓{w.rx_human}</span> &nbsp;
+                          <span style={{ color: 'var(--accent-blue)' }}>↑{w.tx_human}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => handleOpenEdit(r)}
-                  style={{ padding: '6px 10px', color: 'var(--accent-cyan)', borderColor: 'rgba(0, 210, 211, 0.3)' }}
-                  title="Edit Kredensial Router Ini"
-                >
-                  <Edit3 size={13} />
-                  <span>Edit</span>
-                </button>
+                {/* Action Bar: Remote Winbox + Edit Kredensial + Hapus Router */}
+                <div style={{ 
+                  marginTop: 'auto', 
+                  paddingTop: '12px',
+                  borderTop: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  gap: '8px'
+                }}>
+                  <a 
+                    href={`winbox://${r.winbox_addr}`}
+                    className="btn btn-secondary btn-sm"
+                    style={{ flex: 1, justifyContent: 'center' }}
+                    title="Buka Winbox langsung"
+                  >
+                    <ExternalLink size={13} />
+                    <span>Winbox ({r.winbox_addr})</span>
+                  </a>
 
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => handleOpenDelete(r)}
-                  style={{ padding: '6px 10px', color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.3)' }}
-                  title="Hapus Router Ini dari Sistem"
-                >
-                  <Trash2 size={13} />
-                </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleOpenEdit(r)}
+                    style={{ padding: '6px 10px', color: 'var(--accent-cyan)', borderColor: 'rgba(0, 210, 211, 0.3)' }}
+                    title="Edit Kredensial Router Ini"
+                  >
+                    <Edit3 size={13} />
+                    <span>Edit</span>
+                  </button>
+
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleOpenDelete(r)}
+                    style={{ padding: '6px 10px', color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.3)' }}
+                    title="Hapus Router Ini dari Sistem"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Modal: Edit Kredensial Router */}
       {editModalOpen && (

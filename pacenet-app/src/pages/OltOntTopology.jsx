@@ -28,6 +28,7 @@ import {
   Eye,
   Globe
 } from 'lucide-react';
+import { authFetch } from '../utils/api';
 
 export default function OltOntTopology({ onNavigate, isReadOnly }) {
   const [data, setData] = useState(null);
@@ -75,7 +76,7 @@ export default function OltOntTopology({ onNavigate, isReadOnly }) {
   const fetchTopology = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/olt_ont.php');
+      const res = await authFetch('/api/olt_ont.php');
       const json = await res.json();
       if (json.success) {
         setData(json.data);
@@ -91,7 +92,11 @@ export default function OltOntTopology({ onNavigate, isReadOnly }) {
 
   useEffect(() => {
     fetchTopology();
-    const interval = setInterval(fetchTopology, 10000); // 10s live refresh
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        fetchTopology();
+      }
+    }, 20000); // 20s live refresh and only when tab is active
     return () => clearInterval(interval);
   }, []);
 
@@ -412,7 +417,7 @@ export default function OltOntTopology({ onNavigate, isReadOnly }) {
     setFeedback(null);
 
     try {
-      const res = await fetch('/api/olt_ont.php?action=save', {
+      const res = await authFetch('/api/olt_ont.php?action=save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -441,7 +446,7 @@ export default function OltOntTopology({ onNavigate, isReadOnly }) {
 
     setActionLoading(true);
     try {
-      const res = await fetch('/api/olt_ont.php?action=delete', {
+      const res = await authFetch('/api/olt_ont.php?action=delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: d.id })
@@ -834,6 +839,33 @@ export default function OltOntTopology({ onNavigate, isReadOnly }) {
       {/* LIST / CARDS VIEW */}
       {viewMode === 'list' && (
         <>
+          {devices.length === 0 && (
+            <div className="glass-card" style={{ 
+              textAlign: 'center', 
+              padding: '48px 24px', 
+              border: '1px dashed var(--border-active)',
+              borderRadius: 'var(--radius-lg)',
+              background: 'rgba(15, 23, 42, 0.4)',
+              marginBottom: '20px'
+            }}>
+              <Network size={44} style={{ color: 'var(--accent-cyan)', margin: '0 auto 14px', opacity: 0.7 }} />
+              <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '8px' }}>
+                Belum Ada Perangkat OLT / ONT Terpasang
+              </h4>
+              <p style={{ fontSize: '13px', maxWidth: '520px', margin: '0 auto 20px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                Topologi fiber optik masih kosong. Tambahkan perangkat Core OLT dan ONT distribusi untuk memetakan jaringan FTTH, redaman optik, serta radius jangkauan WiFi.
+              </p>
+              <button 
+                className="btn btn-primary"
+                onClick={() => setAddModalOpen(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
+              >
+                <PlusCircle size={16} />
+                <span>+ Tambah Perangkat OLT / ONT Baru</span>
+              </button>
+            </div>
+          )}
+
           {/* OLT Core Equipment Card */}
           {olts.map(olt => (
             <div key={olt.id} className="glass-card" style={{

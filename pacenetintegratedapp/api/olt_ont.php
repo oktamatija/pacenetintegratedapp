@@ -24,122 +24,9 @@ function saveDevices($file, $devices) {
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
 $devices = loadDevices($dataFile);
 
-// Seed if empty or seed enhanced sample devices for rich FTTH & GIS visibility
-if (empty($devices) || count($devices) < 3 || empty($devices[0]['lat'])) {
-    $devices = array(
-        array(
-            'id' => 'olt-01',
-            'type' => 'OLT',
-            'name' => 'OLT HSGQ EPON/GPON Core',
-            'model' => 'HSGQ G08-P Core 8-Port',
-            'sn' => 'HSGQ20268899',
-            'mac' => 'E0:67:B3:11:22:33',
-            'vpn_ip' => '10.10.10.50',
-            'web_port' => '80',
-            'location' => 'POP Hamadi Central',
-            'pon_ports' => 8,
-            'max_bandwidth_mbps' => 2500,
-            'lat' => -2.5645,
-            'lng' => 140.7065,
-            'coverage_radius_meters' => 0,
-            'status' => 'approved',
-            'registered_at' => '2026-09-12 12:14:30',
-            'approved_at' => '2026-09-12 12:14:30'
-        ),
-        array(
-            'id' => 'ont-01',
-            'type' => 'ONT',
-            'name' => 'ONT ZTE F609 - Hamadi Timur RT 01',
-            'model' => 'ZTE F609 v3 (100M Single-Band 2.4G)',
-            'sn' => 'ZTEG98765432',
-            'mac' => '74:85:2A:44:55:66',
-            'vpn_ip' => '10.10.10.101',
-            'web_port' => '80',
-            'olt_id' => 'olt-01',
-            'pon_port' => 'PON 1',
-            'router_session' => 'Dolphin-Hamadi',
-            'subnet_cidr' => '10.0.0.0/24',
-            'location' => 'Tiang Distribusi RT 01 Hamadi',
-            'max_users_capacity' => 25,
-            'max_bandwidth_mbps' => 100,
-            'lat' => -2.5630,
-            'lng' => 140.7088,
-            'coverage_radius_meters' => 100,
-            'status' => 'approved',
-            'registered_at' => '2026-09-12 12:14:30',
-            'approved_at' => '2026-09-12 12:15:45'
-        ),
-        array(
-            'id' => 'ont-02',
-            'type' => 'ONT',
-            'name' => 'ONT Huawei HG8245H - Hamadi Barat RT 03',
-            'model' => 'Huawei HG8245H5 (100M Dual-Band)',
-            'sn' => 'HWTC11223344',
-            'mac' => '48:D2:4F:77:88:99',
-            'vpn_ip' => '10.10.10.102',
-            'web_port' => '80',
-            'olt_id' => 'olt-01',
-            'pon_port' => 'PON 1',
-            'router_session' => 'Dolphin-Hamadi',
-            'subnet_cidr' => '10.0.1.0/24',
-            'location' => 'Pos Kamling Hamadi Barat',
-            'max_users_capacity' => 30,
-            'max_bandwidth_mbps' => 100,
-            'lat' => -2.5662,
-            'lng' => 140.7035,
-            'coverage_radius_meters' => 110,
-            'status' => 'approved',
-            'registered_at' => '2026-09-12 14:20:10',
-            'approved_at' => '2026-09-12 14:22:00'
-        ),
-        array(
-            'id' => 'ont-03',
-            'type' => 'ONT',
-            'name' => 'ONT Fiberhome - Cluster Dolphin Kost',
-            'model' => 'Fiberhome AN5506-04 (100M Single-Band)',
-            'sn' => 'FHTT55667788',
-            'mac' => '50:65:F3:99:AA:BB',
-            'vpn_ip' => '10.10.10.103',
-            'web_port' => '80',
-            'olt_id' => 'olt-01',
-            'pon_port' => 'PON 2',
-            'router_session' => 'Rumah-DOLPHIN',
-            'subnet_cidr' => '10.0.2.0/24',
-            'location' => 'Gedung Kost Dolphin Mahasiswa',
-            'max_users_capacity' => 20,
-            'max_bandwidth_mbps' => 100,
-            'lat' => -2.5615,
-            'lng' => 140.7052,
-            'coverage_radius_meters' => 90,
-            'status' => 'approved',
-            'registered_at' => '2026-09-13 09:10:00',
-            'approved_at' => '2026-09-13 09:12:00'
-        ),
-        array(
-            'id' => 'ont-04',
-            'type' => 'ONT',
-            'name' => 'ONT VSOL V2801SG - Cafe & Pujasera Hamadi',
-            'model' => 'VSOL V2804AX (Gigabit WiFi 6 AX1800)',
-            'sn' => 'VSOL99887766',
-            'mac' => '00:1E:A6:33:44:55',
-            'vpn_ip' => '10.10.10.104',
-            'web_port' => '80',
-            'olt_id' => 'olt-01',
-            'pon_port' => 'PON 3',
-            'router_session' => 'Dolphin-Hamadi',
-            'subnet_cidr' => '10.0.3.0/24',
-            'location' => 'Pujasera Hamadi Central',
-            'max_users_capacity' => 60,
-            'max_bandwidth_mbps' => 1000,
-            'lat' => -2.5652,
-            'lng' => 140.7076,
-            'coverage_radius_meters' => 140,
-            'status' => 'approved',
-            'registered_at' => '2026-09-13 11:30:00',
-            'approved_at' => '2026-09-13 11:35:00'
-        )
-    );
-    saveDevices($dataFile, $devices);
+// Devices array
+if (!is_array($devices)) {
+    $devices = array();
 }
 
 // -------------------------------------------------------------------------
@@ -158,25 +45,33 @@ if ($action === 'list') {
 
         $routerActiveUsers[$sName] = array();
 
-        $tApi = new RouterosAPI();
-        $tApi->timeout = 1.5;
-        $tApi->attempts = 1;
-        $tApi->debug = false;
+        // Fast socket pre-check (250ms) to avoid hanging worker threads on offline routers
+        $sock = @fsockopen($ip, 8728, $errno, $errstr, 0.25);
+        if ($sock) {
+            fclose($sock);
+            $tApi = new RouterosAPI();
+            $tApi->timeout = 1.0;
+            $tApi->attempts = 1;
+            $tApi->delay = 0;
+            $tApi->debug = false;
 
-        if ($tApi->connect($ip, $user, $pass)) {
-            $routerConnected[$sName] = true;
-            $actives = $tApi->comm('/ip/hotspot/active/print');
-            if (is_array($actives)) {
-                foreach ($actives as $act) {
-                    $routerActiveUsers[$sName][] = array(
-                        'ip' => $act['address'] ?? '',
-                        'user' => $act['user'] ?? '',
-                        'bytes_in' => intval($act['bytes-in'] ?? 0),
-                        'bytes_out' => intval($act['bytes-out'] ?? 0)
-                    );
+            if ($tApi->connect($ip, $user, $pass)) {
+                $routerConnected[$sName] = true;
+                $actives = $tApi->comm('/ip/hotspot/active/print');
+                if (is_array($actives)) {
+                    foreach ($actives as $act) {
+                        $routerActiveUsers[$sName][] = array(
+                            'ip' => $act['address'] ?? '',
+                            'user' => $act['user'] ?? '',
+                            'bytes_in' => intval($act['bytes-in'] ?? 0),
+                            'bytes_out' => intval($act['bytes-out'] ?? 0)
+                        );
+                    }
                 }
+                $tApi->disconnect();
+            } else {
+                $routerConnected[$sName] = false;
             }
-            $tApi->disconnect();
         } else {
             $routerConnected[$sName] = false;
         }

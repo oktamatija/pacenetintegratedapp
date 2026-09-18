@@ -19,6 +19,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { parseBilingualDuration } from '../utils/durationParser';
+import { authFetch, getAuthHeaders } from '../utils/api';
 
 export default function UserProfiles({ onNavigate, onQuickPrintProfile, isReadOnly }) {
 
@@ -54,27 +55,33 @@ export default function UserProfiles({ onNavigate, onQuickPrintProfile, isReadOn
     try {
       setLoading(true);
       const url = router ? `/api/profiles.php?router=${encodeURIComponent(router)}` : '/api/profiles.php';
-      const res = await fetch(url);
+      const res = await authFetch(url);
       const json = await res.json();
       if (json.data) {
         setData(json.data);
         if (!selectedRouter && json.data?.current_router) {
           setSelectedRouter(json.data.current_router);
+        } else if (!selectedRouter && json.data?.routers?.length > 0) {
+          setSelectedRouter(json.data.routers[0].session);
         }
+      }
+      if (json.message && !json.success) {
+        setFeedback({ type: 'error', text: json.message });
       }
     } catch (e) {
       console.error('Failed to load user profiles', e);
-      setFeedback({ type: 'error', text: 'Gagal menghubungi server MikroTik untuk membaca profil.' });
+      setFeedback({ type: 'error', text: 'Gagal menghubungi server untuk membaca profil.' });
     } finally {
       setLoading(false);
     }
   };
 
   const fetchOptions = async (router) => {
+    if (!router) return;
     try {
-      const res = await fetch(`/api/profiles.php?action=options&router=${encodeURIComponent(router)}`);
+      const res = await authFetch(`/api/profiles.php?action=get_options&router=${encodeURIComponent(router)}`);
       const json = await res.json();
-      if (json.success) {
+      if (json.success && json.data) {
         setOptions(json.data);
       }
     } catch (e) {
@@ -153,16 +160,15 @@ export default function UserProfiles({ onNavigate, onQuickPrintProfile, isReadOn
       : `/api/profiles.php?action=update&router=${encodeURIComponent(selectedRouter)}`;
 
     try {
-      const res = await fetch(endpoint, {
+      const res = await authFetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
       const json = await res.json();
       if (json.success) {
         setFeedback({ type: 'success', text: json.message || 'Profil berhasil disimpan.' });
         setShowModal(false);
-        fetchProfiles();
+        fetchProfiles(selectedRouter);
       } else {
         setFeedback({ type: 'error', text: json.message || 'Gagal menyimpan profil.' });
       }
@@ -185,15 +191,14 @@ export default function UserProfiles({ onNavigate, onQuickPrintProfile, isReadOn
     setFeedback(null);
 
     try {
-      const res = await fetch(`/api/profiles.php?action=delete&router=${encodeURIComponent(selectedRouter)}`, {
+      const res = await authFetch(`/api/profiles.php?action=delete&router=${encodeURIComponent(selectedRouter)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: p.id, name: p.name })
       });
       const json = await res.json();
       if (json.success) {
         setFeedback({ type: 'success', text: json.message || `Profil ${p.name} berhasil dihapus.` });
-        fetchProfiles();
+        fetchProfiles(selectedRouter);
       } else {
         setFeedback({ type: 'error', text: json.message || 'Gagal menghapus profil.' });
       }
@@ -208,7 +213,7 @@ export default function UserProfiles({ onNavigate, onQuickPrintProfile, isReadOn
   const handleQuickPrint = async (p) => {
     setQuickPrintLoading(p.name);
     try {
-      const res = await fetch(`/api/profiles.php?action=quick_vouchers&router=${encodeURIComponent(selectedRouter)}&profile=${encodeURIComponent(p.name)}&limit=55`);
+      const res = await authFetch(`/api/profiles.php?action=quick_vouchers&router=${encodeURIComponent(selectedRouter)}&profile=${encodeURIComponent(p.name)}&limit=55`);
       const json = await res.json();
       if (json.success && json.data?.vouchers?.length > 0) {
         if (onQuickPrintProfile) {

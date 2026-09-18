@@ -8,14 +8,37 @@ $link_orig = isset($_GET['link-orig']) ? htmlspecialchars($_GET['link-orig']) : 
 $error = isset($_GET['error']) ? htmlspecialchars($_GET['error']) : '';
 $chap_id = isset($_GET['chap-id']) ? htmlspecialchars($_GET['chap-id']) : '';
 $chap_challenge = isset($_GET['chap-challenge']) ? htmlspecialchars($_GET['chap-challenge']) : '';
+
+// Dynamic Portal Configuration
+$portalFile = __DIR__ . '/../data/hotspot_portal.json';
+$portalConfig = array(
+    'brand_name' => 'Cibi Cibi Hotspot',
+    'brand_subtitle' => 'WiFi Cepat, Stabil & Terjangkau',
+    'whatsapp_number' => '+62 813-4401-0045',
+    'whatsapp_link' => 'https://wa.me/6281344010045?text=Halo%20Admin%20Cibi%20Cibi%20Hotspot,%20saya%20mau%20beli%20voucher',
+    'prices' => array(
+        array('name' => '12 Jam', 'cost' => 'Rp 4.000'),
+        array('name' => '1 Minggu', 'cost' => 'Rp 40.000'),
+        array('name' => '1 Bulan', 'cost' => 'Rp 100.000'),
+        array('name' => 'Reseller', 'cost' => 'Paket Khusus')
+    )
+);
+
+if (file_exists($portalFile)) {
+    $custom = json_decode(@file_get_contents($portalFile), true);
+    if (is_array($custom)) {
+        $portalConfig = array_merge($portalConfig, $custom);
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hotspot Yunus - Login Portal</title>
-    <link rel="icon" href="/img/logo.png">
+    <title><?= htmlspecialchars($portalConfig['brand_name']); ?> - Login Portal</title>
+    <link rel="icon" href="/app/favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link rel="stylesheet" href="/css/font-awesome/css/font-awesome.min.css">
     <style>
         * {
@@ -222,12 +245,16 @@ $chap_challenge = isset($_GET['chap-challenge']) ? htmlspecialchars($_GET['chap-
 
 <div class="card">
     <div class="header">
-        <img src="/img/logo.png" alt="Hotspot Yunus Logo" class="logo-img">
-        <h1 class="title">Hotspot Yunus</h1>
-        <p class="subtitle">WiFi Cepat, Stabil & Terjangkau</p>
-        <a href="https://wa.me/6281344010045?text=Halo%20Admin%20Hotspot%20Yunus,%20saya%20mau%20beli%20voucher" class="contact-chip" target="_blank">
-            <i class="fa fa-whatsapp"></i> +62 813-4401-0045
-        </a>
+        <div style="width: 70px; height: 70px; margin: 0 auto 8px; border-radius: 50%; background: linear-gradient(135deg, #1a2a6c, #00d2d3); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,210,211,0.3);">
+            <i class="fa fa-wifi" style="font-size: 32px; color: #ffffff;"></i>
+        </div>
+        <h1 class="title"><?= htmlspecialchars($portalConfig['brand_name']); ?></h1>
+        <p class="subtitle"><?= htmlspecialchars($portalConfig['brand_subtitle']); ?></p>
+        <?php if (!empty($portalConfig['whatsapp_number'])): ?>
+            <a href="<?= htmlspecialchars($portalConfig['whatsapp_link'] ?? 'https://wa.me/' . preg_replace('/[^0-9]/', '', $portalConfig['whatsapp_number'])); ?>" class="contact-chip" target="_blank">
+                <i class="fa fa-whatsapp"></i> <?= htmlspecialchars($portalConfig['whatsapp_number']); ?>
+            </a>
+        <?php endif; ?>
     </div>
 
     <div class="tabs">
@@ -268,31 +295,23 @@ $chap_challenge = isset($_GET['chap-challenge']) ? htmlspecialchars($_GET['chap-
         </form>
     </div>
 
+    <?php if (!empty($portalConfig['prices']) && is_array($portalConfig['prices'])): ?>
     <div class="pricing-section">
         <div class="pricing-title"><i class="fa fa-tag"></i> Daftar Tarif Voucher</div>
         <div class="pricing-grid">
-            <div class="price-item">
-                <div class="price-name">12 Jam</div>
-                <div class="price-cost">Rp 4.000</div>
-            </div>
-            <div class="price-item">
-                <div class="price-name">1 Minggu</div>
-                <div class="price-cost">Rp 40.000</div>
-            </div>
-            <div class="price-item">
-                <div class="price-name">1 Bulan</div>
-                <div class="price-cost">Rp 100.000</div>
-            </div>
-            <div class="price-item">
-                <div class="price-name">Reseller</div>
-                <div class="price-cost">Paket Khusus</div>
-            </div>
+            <?php foreach ($portalConfig['prices'] as $p): ?>
+                <div class="price-item">
+                    <div class="price-name"><?= htmlspecialchars($p['name'] ?? ''); ?></div>
+                    <div class="price-cost"><?= htmlspecialchars($p['cost'] ?? ''); ?></div>
+                </div>
+            <?php endforeach; ?>
         </div>
     </div>
+    <?php endif; ?>
 
     <div class="footer">
         Hubungi Admin untuk pembelian voucher fisik / digital.<br>
-        &copy; <?= date('Y'); ?> Pacenet Billing System - Powered by MikroTik
+        &copy; <?= date('Y'); ?> <?= htmlspecialchars($portalConfig['brand_name']); ?> - Powered by PACENET PRO
     </div>
 </div>
 

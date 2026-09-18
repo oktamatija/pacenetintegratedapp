@@ -15,11 +15,16 @@ export default function Login({ onLoginSuccess }) {
     try {
       const res = await fetch('/api/auth.php?action=login', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user, pass })
       });
       const json = await res.json();
       if (json.success) {
+        if (json.data?.token) {
+          localStorage.setItem('pacenet_token', json.data.token);
+          localStorage.setItem('pacenet_user_data', JSON.stringify(json.data));
+        }
         onLoginSuccess(json.data);
       } else {
         setError(json.message || 'Username atau password salah.');
@@ -40,11 +45,16 @@ export default function Login({ onLoginSuccess }) {
     try {
       const res = await fetch('/api/auth.php?action=login', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user: 'demo', pass: 'demo' })
       });
       const json = await res.json();
       if (json.success) {
+        if (json.data?.token) {
+          localStorage.setItem('pacenet_token', json.data.token);
+          localStorage.setItem('pacenet_user_data', JSON.stringify(json.data));
+        }
         onLoginSuccess(json.data);
       } else {
         setError(json.message || 'Gagal login akun demo.');

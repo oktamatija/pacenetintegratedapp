@@ -3,6 +3,21 @@
  * Pacenet Modern REST API - Common Helpers & Configuration
  */
 if (session_status() == PHP_SESSION_NONE) {
+    ini_set('session.cookie_path', '/');
+    ini_set('session.cookie_httponly', '1');
+    ini_set('session.gc_maxlifetime', '604800');
+    if (PHP_VERSION_ID >= 70300) {
+        session_set_cookie_params([
+            'lifetime' => 604800,
+            'path' => '/',
+            'domain' => '',
+            'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
+    } else {
+        session_set_cookie_params(604800, '/; samesite=Lax', '', (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'), true);
+    }
     session_start();
 }
 
@@ -42,8 +57,8 @@ function sendJsonResponse($success, $data = array(), $message = '', $code = 200)
     return jsonResponse($success, $data, $message, $code);
 }
 
-function getMikroTikApi($sessionName = '') {
-    $conn = connectMikrotik($sessionName);
+function getMikroTikApi($sessionName = '', $timeout = 3.5) {
+    $conn = connectMikrotik($sessionName, $timeout);
     if ($conn && !empty($conn['api'])) {
         return array('success' => true, 'api' => $conn['api'], 'config' => $conn['config']);
     }
@@ -151,13 +166,21 @@ function getRouterConfig($sessionName = 'Rumah-DOLPHIN') {
     );
 }
 
-function connectMikrotik($sessionName = 'Rumah-DOLPHIN', $timeout = 3) {
+function connectMikrotik($sessionName = 'Rumah-DOLPHIN', $timeout = 3.0) {
     $cfg = getRouterConfig($sessionName);
     if (!$cfg || empty($cfg['ip'])) return null;
 
+    // Fast socket pre-check (1000ms) to ensure router TCP port 8728 is alive before opening API
+    $sock = @fsockopen($cfg['ip'], (int)($cfg['port'] ?? 8728), $errno, $errstr, 1.0);
+    if (!$sock) {
+        return null;
+    }
+    fclose($sock);
+
     $api = new RouterosAPI();
-    $api->timeout = $timeout;
-    $api->attempts = 1;
+    $api->timeout = max(3.0, (float)$timeout);
+    $api->attempts = 2;
+    $api->delay = 1;
     $api->debug = false;
 
     if ($api->connect($cfg['ip'], $cfg['user'], $cfg['pass'])) {

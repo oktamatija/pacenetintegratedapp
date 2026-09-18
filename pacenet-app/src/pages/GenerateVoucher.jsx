@@ -17,6 +17,7 @@ import {
   Database
 } from 'lucide-react';
 import { parseBilingualDuration } from '../utils/durationParser';
+import { authFetch } from '../utils/api';
 
 export default function GenerateVoucher({ onNavigate, setGeneratedForPrint, isReadOnly }) {
   const [profiles, setProfiles] = useState([]);
@@ -43,7 +44,7 @@ export default function GenerateVoucher({ onNavigate, setGeneratedForPrint, isRe
 
   // Fetch available profiles & routers
   useEffect(() => {
-    fetch('/api/vouchers.php?action=list&limit=1')
+    authFetch('/api/vouchers.php?action=list&limit=1')
       .then(res => res.json())
       .then(json => {
         if (json.success) {
@@ -80,9 +81,8 @@ export default function GenerateVoucher({ onNavigate, setGeneratedForPrint, isRe
     setResult(null);
 
     try {
-      const res = await fetch('/api/generate.php', {
+      const res = await authFetch('/api/generate.php', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           target_router: targetRouter,
           qty: numQty,

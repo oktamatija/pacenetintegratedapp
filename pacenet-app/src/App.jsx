@@ -11,6 +11,7 @@ import VpsResource from './pages/VpsResource';
 import RosManager from './pages/RosManager';
 import RouterOnboarding from './pages/RouterOnboarding';
 import UserProfiles from './pages/UserProfiles';
+import HotspotPortal from './pages/HotspotPortal';
 import OltOntTopology from './pages/OltOntTopology';
 import UsersManagement from './pages/UsersManagement';
 import ResellerKiosk from './pages/ResellerKiosk';
@@ -37,9 +38,14 @@ export default function App() {
   // 1. Check Auth Status
   const checkAuth = async () => {
     try {
-      const res = await fetch('/api/auth.php?action=check');
+      const savedToken = localStorage.getItem('pacenet_token');
+      const headers = savedToken ? { 'Authorization': `Bearer ${savedToken}` } : {};
+      const res = await fetch('/api/auth.php?action=check', {
+        credentials: 'include',
+        headers
+      });
       const json = await res.json();
-      if (json.success && json.data.authenticated) {
+      if (json.success && json.data && json.data.authenticated) {
         setIsAuthenticated(true);
         setCurrentUser(json.data.user);
         const role = json.data.role || 'admin';
@@ -54,6 +60,8 @@ export default function App() {
           setCurrentPage('reports');
         }
       } else {
+        localStorage.removeItem('pacenet_token');
+        localStorage.removeItem('pacenet_user_data');
         setIsAuthenticated(false);
         setIsReadOnly(false);
       }
@@ -82,12 +90,23 @@ export default function App() {
     isFetchingRef.current = true;
     setIsRefreshing(true);
     try {
-      const res = await fetch('/api/routers.php');
+      const savedToken = localStorage.getItem('pacenet_token');
+      const headers = savedToken ? { 'Authorization': `Bearer ${savedToken}` } : {};
+      const res = await fetch('/api/routers.php', {
+        credentials: 'include',
+        headers
+      });
       const json = await res.json();
       if (json.success) {
         setRouterData(json.data);
       } else if (res.status === 401) {
-        setIsAuthenticated(false);
+        // Double check session before evicting
+        const chk = await fetch('/api/auth.php?action=check', { credentials: 'include', headers });
+        const chkJson = await chk.json();
+        if (!chkJson.success || !chkJson.data?.authenticated) {
+          localStorage.removeItem('pacenet_token');
+          setIsAuthenticated(false);
+        }
       }
     } catch (e) {
       console.error('Failed to load router live stats', e);
@@ -121,10 +140,14 @@ export default function App() {
   // Logout handler
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth.php?action=logout');
+      const savedToken = localStorage.getItem('pacenet_token');
+      const headers = savedToken ? { 'Authorization': `Bearer ${savedToken}` } : {};
+      await fetch('/api/auth.php?action=logout', { credentials: 'include', headers });
     } catch (e) {
       console.error(e);
     }
+    localStorage.removeItem('pacenet_token');
+    localStorage.removeItem('pacenet_user_data');
     setIsAuthenticated(false);
     setCurrentUser(null);
     setUserRole('admin');
@@ -268,6 +291,12 @@ export default function App() {
                 setVouchersForPrint(vList);
                 setCurrentPage('print');
               }}
+              isReadOnly={isReadOnly}
+            />
+          )}
+
+          {currentPage === 'hotspot_portal' && (
+            <HotspotPortal 
               isReadOnly={isReadOnly}
             />
           )}

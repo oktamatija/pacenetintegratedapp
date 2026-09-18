@@ -8,7 +8,7 @@ error_reporting(0);
 
 $dataFile = '/var/www/pacenetintegratedapp/data/pending_routers.json';
 $configFile = '/var/www/pacenetintegratedapp/include/config.php';
-$serverPubIp = '202.10.46.222';
+$serverPubIp = '202.10.47.76';
 $serverWgPub = trim(@file_get_contents('/etc/wireguard/server_public.key') ?: 'UfYb+alr8F2T69ylHUjN14K0TpZ4mjwn+8fHsV5aWWc=');
 
 function loadPending($file) {
@@ -33,11 +33,27 @@ function getAllocations($pendingFile, $configFile) {
     $usedPorts = array(18291); // 18291 = Hotspot-Yunus
     $knownSessions = array();
 
-    // 1. From pending_routers.json
+    // 1. From pending_routers.json (with automatic 60s purge for unjoined routers)
     if (file_exists($pendingFile)) {
         $raw = @file_get_contents($pendingFile);
         $pending = json_decode($raw, true) ?: array();
+        $cleanedPending = array();
+        $changed = false;
+        $now = time();
+
         foreach ($pending as $item) {
+            $cTime = !empty($item['created_at']) ? strtotime($item['created_at']) : $now;
+            $age = $now - $cTime;
+            // Purge unjoined router older than 60 seconds
+            if ($age >= 60 && empty($item['connected'])) {
+                if (!empty($item['pubkey'])) {
+                    @shell_exec("sudo /usr/bin/wg set wg0 peer " . escapeshellarg($item['pubkey']) . " remove 2>/dev/null");
+                }
+                $changed = true;
+                continue;
+            }
+
+            $cleanedPending[] = $item;
             if (!empty($item['vpn_ip'])) $usedIps[] = trim($item['vpn_ip']);
             if (!empty($item['winbox_port'])) $usedPorts[] = intval($item['winbox_port']);
             if (!empty($item['identity']) && !empty($item['vpn_ip'])) {
@@ -48,6 +64,11 @@ function getAllocations($pendingFile, $configFile) {
                     'privkey' => $item['privkey'] ?? ''
                 );
             }
+        }
+
+        if ($changed) {
+            @file_put_contents($pendingFile, json_encode($cleanedPending, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            @shell_exec("sudo /usr/bin/wg-quick save wg0 2>/dev/null");
         }
     }
 
@@ -103,7 +124,19 @@ function getAllocations($pendingFile, $configFile) {
     );
 }
 
-$action = $_GET['action'] ?? ($_GET['join'] ? 'bootstrap' : '');
+$action = $_GET['action'] ?? '';
+$reqUri = $_SERVER['REQUEST_URI'] ?? '';
+
+if (empty($action)) {
+    if (stripos($reqUri, 'heartbeat') !== false) {
+        $action = 'heartbeat';
+    } elseif (stripos($reqUri, 'list_pending') !== false) {
+        $action = 'list_pending';
+    } else {
+        // Default to bootstrap for clean RouterOS fetch without '?' character
+        $action = 'bootstrap';
+    }
+}
 
 if ($action === 'heartbeat') {
     header('Content-Type: text/plain');
@@ -185,12 +218,12 @@ if ($action === 'bootstrap') {
         $winboxPort = $nextPort;
 
         // Generate client keys
-        $clientPriv = trim(shell_exec('wg genkey'));
-        $clientPub = trim(shell_exec("echo " . escapeshellarg($clientPriv) . " | wg pubkey"));
+        $clientPriv = trim(shell_exec('/usr/bin/wg genkey 2>/dev/null') ?: shell_exec('wg genkey 2>/dev/null'));
+        $clientPub = trim(shell_exec("echo " . escapeshellarg($clientPriv) . " | /usr/bin/wg pubkey 2>/dev/null") ?: shell_exec("echo " . escapeshellarg($clientPriv) . " | wg pubkey 2>/dev/null"));
 
         // Add peer to wg0 kernel via sudo
-        shell_exec("sudo wg set wg0 peer " . escapeshellarg($clientPub) . " allowed-ips {$clientIp}/32 2>/dev/null");
-        shell_exec("sudo wg-quick save wg0 2>/dev/null");
+        @shell_exec("sudo /usr/bin/wg set wg0 peer " . escapeshellarg($clientPub) . " allowed-ips {$clientIp}/32 2>/dev/null");
+        @shell_exec("sudo /usr/bin/wg-quick save wg0 2>/dev/null");
 
         $newEntry = array(
             'identity' => $cleanId,
@@ -219,33 +252,39 @@ if ($action === 'bootstrap') {
     $rsc .= "# Assigned VPN IP: {$clientIp} | Winbox Remote: {$serverPubIp}:{$winboxPort}\n";
     $rsc .= "#====================================================================\n";
     $rsc .= ":log info \"[Pacenet-Join] Memulai inisialisasi koneksi WireGuard...\"\n";
-    $rsc .= ":do { /system/identity/set name=\"{$cleanId}\" } on-error={}\n";
-    $rsc .= "/interface/wireguard/remove [find name=wg-vpn-remote]\n";
-    $rsc .= "/interface/wireguard/add name=wg-vpn-remote listen-port=13231 private-key=\"{$clientPriv}\"\n";
-    $rsc .= "/ip/address/remove [find interface=wg-vpn-remote]\n";
-    $rsc .= "/ip/address/add address={$clientIp}/24 interface=wg-vpn-remote comment=\"VPN Remote Pacenet Billing\"\n";
-    $rsc .= "/interface/wireguard/peers/remove [find interface=wg-vpn-remote]\n";
-    $rsc .= "/interface/wireguard/peers/add interface=wg-vpn-remote public-key=\"{$serverWgPub}\" endpoint-address=\"{$serverPubIp}\" endpoint-port=51820 allowed-address=10.10.10.0/24 persistent-keepalive=25s\n";
+    $rsc .= ":local rosVer [/system resource get version]\n";
+    $rsc .= ":if ([:pick \$rosVer 0 1] < \"7\") do={\n";
+    $rsc .= "    :log error \"[Pacenet-Join] Error: RouterOS v\$rosVer terdeteksi. WireGuard membutuhkan RouterOS v7!\"\n";
+    $rsc .= "    :error \"RouterOS Anda v\$rosVer. Silakan upgrade ke RouterOS v7 untuk menggunakan WireGuard Cloud.\"\n";
+    $rsc .= "}\n";
+    $rsc .= ":do { /system identity set name=\"{$cleanId}\" } on-error={}\n";
+    $rsc .= ":do { /interface wireguard remove [find name=\"wg-vpn-remote\"] } on-error={}\n";
+    $rsc .= ":do { /ip address remove [find interface=\"wg-vpn-remote\"] } on-error={}\n";
+    $rsc .= "/interface wireguard add name=\"wg-vpn-remote\" listen-port=13231 private-key=\"{$clientPriv}\"\n";
+    $rsc .= "/ip address add address={$clientIp}/24 interface=\"wg-vpn-remote\" comment=\"VPN Remote Pacenet Billing\"\n";
+    $rsc .= "/interface wireguard peers add interface=\"wg-vpn-remote\" public-key=\"{$serverWgPub}\" endpoint-address=\"{$serverPubIp}\" endpoint-port=51820 allowed-address=10.10.10.0/24 persistent-keepalive=25s\n";
     $rsc .= "\n# Aktifkan service API, FTP, dan WWW untuk manajemen otomatis Pacenet Billing\n";
-    $rsc .= ":do { /ip/service/enable [find name=api] } on-error={}\n";
-    $rsc .= ":do { /ip/service/enable [find name=ftp] } on-error={}\n";
-    $rsc .= ":do { /ip/service/enable [find name=www] } on-error={}\n";
-    $rsc .= ":do { /ip/service/set [find name=api] address=0.0.0.0/0 disabled=no } on-error={}\n";
-    $rsc .= ":do { /ip/service/set [find name=ftp] address=0.0.0.0/0 disabled=no } on-error={}\n";
-    $rsc .= ":do { /ip/service/set [find name=www] address=0.0.0.0/0 disabled=no } on-error={}\n";
-    $rsc .= "\n# Sinkronisasi SNTP Client Publik (Mencegah kegagalan timestamp WireGuard saat mati lampu/blackout)\n";
-    $rsc .= ":do { /system/ntp/client/set enabled=yes mode=unicast servers=162.159.200.1,216.239.35.0 } on-error={}\n";
+    $rsc .= ":do { /ip service enable [find name=\"api\"] } on-error={}\n";
+    $rsc .= ":do { /ip service enable [find name=\"ftp\"] } on-error={}\n";
+    $rsc .= ":do { /ip service enable [find name=\"www\"] } on-error={}\n";
+    $rsc .= ":do { /ip service set [find name=\"api\"] address=\"\" disabled=no } on-error={}\n";
+    $rsc .= ":do { /ip service set [find name=\"ftp\"] address=\"\" disabled=no } on-error={}\n";
+    $rsc .= ":do { /ip service set [find name=\"www\"] address=\"\" disabled=no } on-error={}\n";
+    $rsc .= "\n# Sinkronisasi SNTP Client Publik\n";
+    $rsc .= ":do { /system ntp client set enabled=yes mode=unicast servers=162.159.200.1,216.239.35.0 } on-error={}\n";
     $rsc .= "\n# Bersihkan rute statis usang jika ada\n";
-    $rsc .= ":do { /ip/route/remove [find comment=\"WG Tunnel Protection to VPS\"] } on-error={}\n";
+    $rsc .= ":do { /ip route remove [find comment=\"WG Tunnel Protection to VPS\"] } on-error={}\n";
     $rsc .= "\n# Hardware Watchdog & System Watchdog (Kernel Freeze Protection)\n";
-    $rsc .= ":do { /system/watchdog/set watchdog-timer=yes watch-address=none ping-start-after-boot=5m ping-timeout=1m automatic-supout=yes auto-send-supout=no } on-error={}\n";
+    $rsc .= ":do { /system watchdog set watchdog-timer=yes watch-address=none ping-start-after-boot=5m ping-timeout=1m automatic-supout=yes auto-send-supout=no } on-error={}\n";
     $rsc .= "\n# Watchdog Otomatis 24/7 (Blackout / Mati Lampu Auto-Recovery & Resilient WAN Check)\n";
-    $rsc .= ":do { /system/script/remove [find name=pacenet-watchdog] } on-error={}\n";
-    $rsc .= "/system/script/add name=pacenet-watchdog comment=\"Auto-reconnect WireGuard after blackout\" source=\":local vpnGw \\\"10.10.10.1\\\"; :local pingCount [/ping \\\$vpnGw count=4 interval=1s]; :if (\\\$pingCount = 0) do={ :local wanCount ([/ping 8.8.8.8 count=2] + [/ping 1.1.1.1 count=2]); :if (\\\$wanCount >= 2) do={ :log warning \\\"[Pacenet-Watchdog] VPN down but WAN online. Restarting WireGuard...\\\"; /interface/wireguard/disable [find name=wg-vpn-remote]; :delay 2s; /interface/wireguard/enable [find name=wg-vpn-remote]; :delay 3s; :do { /tool fetch url=\\\"http://202.10.46.222/join.php?action=heartbeat&ip={$clientIp}\\\" mode=http keep-result=no } on-error={} } else={ :do { :local dhcpStat [/ip/dhcp-client get [find interface=ether1] status]; :if (\\\$dhcpStat != \\\"bound\\\") do={ :log warning \\\"[Pacenet-Watchdog] DHCP ether1 is \\\$dhcpStat. Renewing...\\\"; /ip/dhcp-client renew [find interface=ether1] } } on-error={} } }\"\n";
-    $rsc .= ":do { /system/scheduler/remove [find name=pacenet-watchdog] } on-error={}\n";
-    $rsc .= "/system/scheduler/add name=pacenet-watchdog interval=60s start-time=startup on-event=\"/system/script/run pacenet-watchdog\" comment=\"Keep WireGuard connected 24/7 across blackouts\"\n";
+    $rsc .= ":do { /system script remove [find name=\"pacenet-watchdog\"] } on-error={}\n";
+    $watchdogSrc = ':local vpnGw "10.10.10.1"; :local pingCount [/ping $vpnGw count=3 interval=1s]; :if ($pingCount = 0) do={ :local wanCount ([/ping 8.8.8.8 count=2] + [/ping 1.1.1.1 count=2]); :if ($wanCount >= 2) do={ :log warning "[Pacenet-Watchdog] VPN down but WAN online. Reconnecting WireGuard..."; /interface wireguard disable [find name="wg-vpn-remote"]; :delay 2s; /interface wireguard enable [find name="wg-vpn-remote"]; :delay 2s; :do { /tool fetch url="http://' . $serverPubIp . ':8080/join.php?action=heartbeat&ip=' . $clientIp . '" mode=http keep-result=no } on-error={} } }';
+    $rsc .= "/system script add name=\"pacenet-watchdog\" comment=\"Auto-reconnect WireGuard after blackout\" source=\"" . addcslashes($watchdogSrc, '"\\') . "\"\n";
+    $rsc .= ":do { /system scheduler remove [find name=\"pacenet-watchdog\"] } on-error={}\n";
+    $rsc .= "/system scheduler add name=\"pacenet-watchdog\" interval=60s start-time=startup on-event=\"/system script run pacenet-watchdog\" comment=\"Keep WireGuard connected 24/7 across blackouts\"\n";
     $rsc .= ":delay 2s\n";
-    $rsc .= "/tool fetch url=\"http://10.10.10.1/join.php?action=heartbeat&ip={$clientIp}\" mode=http keep-result=no\n";
+    $rsc .= ":do { /tool fetch url=\"http://" . $serverPubIp . ":8080/join.php?action=heartbeat&ip={$clientIp}\" mode=http keep-result=no } on-error={}\n";
+    $rsc .= ":do { /tool fetch url=\"http://10.10.10.1/join.php?action=heartbeat&ip={$clientIp}\" mode=http keep-result=no } on-error={}\n";
     $rsc .= ":log info \"[Pacenet-Join] BERHASIL! Router terhubung ke WireGuard cloud. Buka Pacenet Billing System untuk klik Accept.\"\n";
 
     header('Content-Length: ' . strlen($rsc));
