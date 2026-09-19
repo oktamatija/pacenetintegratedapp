@@ -24,6 +24,11 @@ pacenet-app/dist/
 pacenet-app/.vite/
 node_modules/
 dist/
+dist_apps/*.apk
+dist_apps/*.zip
+dist_apps/PaceNet-Windows-Desktop/
+!dist_apps/README.md
+pacenet_client/build/
 
 # Python Cache & Virtual Environments
 __pycache__/
@@ -41,3 +46,4 @@ venv/
 .DS_Store
 Thumbs.db
 Desktop.ini
+.vscode/

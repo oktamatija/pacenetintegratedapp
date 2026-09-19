@@ -1,0 +1,19 @@
+{
+  "name": "PaceNet Pro - Billing & Cloud NOC",
+  "short_name": "PaceNet Pro",
+  "description": "PaceNet Billing & Centralized Cloud Network Operations Controller",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "background_color": "#0B0F19",
+  "theme_color": "#0B0F19",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/app/favicon.svg",
+      "sizes": "192x192 512x512 any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
