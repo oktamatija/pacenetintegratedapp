@@ -26,7 +26,7 @@ export default function Navbar({
     traffic: 'Traffic Monitor Real-Time',
     vouchers: 'Centralized Vouchers Hub',
     generate: 'Batch Voucher Generator',
-    print: 'Quick Print & Thermal Slips',
+    print: 'Cetak Voucher F4',
     reports: 'Rekap Penjualan & Laporan',
     ros_manager: 'ROS Upgrade Center',
     system: 'VPS Cloud & WireGuard Mesh'

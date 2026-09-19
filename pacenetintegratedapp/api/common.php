@@ -170,15 +170,16 @@ function connectMikrotik($sessionName = 'Rumah-DOLPHIN', $timeout = 3.0) {
     $cfg = getRouterConfig($sessionName);
     if (!$cfg || empty($cfg['ip'])) return null;
 
-    // Fast socket pre-check (1000ms) to ensure router TCP port 8728 is alive before opening API
-    $sock = @fsockopen($cfg['ip'], (int)($cfg['port'] ?? 8728), $errno, $errstr, 1.0);
+    // Fast socket pre-check with minimum 3.5s timeout to ensure high-latency WireGuard links don't false-fail
+    $precheckTimeout = min(max((float)$timeout, 3.5), 8.0);
+    $sock = @fsockopen($cfg['ip'], (int)($cfg['port'] ?? 8728), $errno, $errstr, $precheckTimeout);
     if (!$sock) {
         return null;
     }
     fclose($sock);
 
     $api = new RouterosAPI();
-    $api->timeout = max(3.0, (float)$timeout);
+    $api->timeout = max(3.5, (float)$timeout);
     $api->attempts = 2;
     $api->delay = 1;
     $api->debug = false;

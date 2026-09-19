@@ -162,7 +162,6 @@ if (file_exists($portalFile)) {
             font-size: 14px;
             outline: none;
             transition: border-color 0.2s;
-            text-transform: uppercase;
         }
         .form-control:focus {
             border-color: #1a2a6c;
@@ -281,12 +280,12 @@ if (file_exists($portalFile)) {
 
             <div class="input-group">
                 <i class="fa fa-key"></i>
-                <input type="text" name="username" id="input-user" class="form-control" placeholder="KODE VOUCHER" required autofocus autocomplete="off">
+                <input type="text" name="username" id="input-user" class="form-control" placeholder="Kode Voucher" required autofocus autocomplete="off" autocapitalize="none" spellcheck="false">
             </div>
 
             <div class="input-group" id="group-password" style="display: none;">
                 <i class="fa fa-lock"></i>
-                <input type="password" name="password" id="input-pass" class="form-control" placeholder="PASSWORD" autocomplete="off">
+                <input type="password" name="password" id="input-pass" class="form-control" placeholder="Password" autocomplete="off" autocapitalize="none">
             </div>
 
             <button type="submit" class="btn-login" id="btn-submit">
@@ -330,14 +329,14 @@ function switchTab(mode) {
         tabVoucher.classList.add('active');
         tabMember.classList.remove('active');
         groupPass.style.display = 'none';
-        inputUser.placeholder = 'KODE VOUCHER';
+        inputUser.placeholder = 'Kode Voucher';
         inputPass.required = false;
-        inputPass.value = inputUser.value.trim().toUpperCase();
+        inputPass.value = inputUser.value.trim();
     } else {
         tabMember.classList.add('active');
         tabVoucher.classList.remove('active');
         groupPass.style.display = 'block';
-        inputUser.placeholder = 'USERNAME';
+        inputUser.placeholder = 'Username';
         inputPass.required = true;
         inputPass.value = '';
     }
@@ -347,15 +346,13 @@ function syncVoucher() {
     const inputUser = document.getElementById('input-user');
     const inputPass = document.getElementById('input-pass');
     if (currentMode === 'voucher') {
-        const val = inputUser.value.trim().toUpperCase();
-        inputPass.value = val;
+        inputPass.value = inputUser.value.trim();
     }
 }
 
 const inputUser = document.getElementById('input-user');
 inputUser.addEventListener('input', function() {
     if (currentMode === 'voucher') {
-        this.value = this.value.toUpperCase();
         document.getElementById('input-pass').value = this.value;
     }
 });
@@ -373,9 +370,8 @@ function prepareLogin(form) {
         return false;
     }
     if (currentMode === 'voucher') {
-        const upper = cleanUser.toUpperCase();
-        form.username.value = upper;
-        form.password.value = upper;
+        form.username.value = cleanUser;
+        form.password.value = cleanUser;
     } else {
         form.username.value = cleanUser;
         if (!form.password.value) {

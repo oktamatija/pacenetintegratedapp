@@ -59,6 +59,19 @@ if (function_exists('pg_connect')) {
             }
         }
 
+        // Synchronize first_login & transition to 'active' for vouchers that have logged in
+        @pg_query($pg, "
+            UPDATE pacenet_vouchers v
+            SET first_login = a.first_time,
+                status = CASE WHEN v.status = 'unused' THEN 'active' ELSE v.status END
+            FROM (
+                SELECT username, MIN(acctstarttime) as first_time
+                FROM radacct
+                GROUP BY username
+            ) a
+            WHERE v.username = a.username AND (v.first_login IS NULL OR v.status = 'unused')
+        ");
+
         // Query all users in radusergroup who have logged in (have radacct entry)
         $qUsers = @pg_query($pg, "
             SELECT 

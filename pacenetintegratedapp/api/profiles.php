@@ -564,7 +564,7 @@ if ($action === 'quick_vouchers') {
     $profileName = trim($_GET['profile'] ?? '');
     $commentFilter = trim($_GET['comment'] ?? '');
     $limit = intval($_GET['limit'] ?? 55);
-    if ($limit <= 0 || $limit > 550) $limit = 55;
+    if ($limit <= 0 || $limit > 11000) $limit = 55;
 
     $pg = getPgDb();
     if ($pg) {
@@ -579,6 +579,9 @@ if ($action === 'quick_vouchers') {
         $vSql = "SELECT id, username, password, profile, price, validity, comment FROM pacenet_vouchers $whereSql ORDER BY id DESC LIMIT $limit";
         $vRes = !empty($params) ? pg_query_params($pg, $vSql, $params) : pg_query($pg, $vSql);
         if ($vRes && pg_num_rows($vRes) > 0) {
+            $activeDns = !empty($data[$routerSession][5]) ? (explode('^', $data[$routerSession][5])[1] ?? 'hotspot.yunus') : 'hotspot.yunus';
+            $activeHotspotName = !empty($data[$routerSession][4]) ? (explode('%', $data[$routerSession][4])[1] ?? 'PACENET HOTSPOT') : 'PACENET HOTSPOT';
+
             $vouchers = array();
             while ($r = pg_fetch_assoc($vRes)) {
                 $vouchers[] = array(
@@ -591,15 +594,15 @@ if ($action === 'quick_vouchers') {
                     'comment' => $r['comment'] ?: '',
                     'price' => floatval($r['price'] ?: 5000),
                     'sprice' => floatval($r['price'] ?: 5000),
-                    'dns_name' => 'hotspot.yunus',
-                    'hotspot_name' => 'PACENET HOTSPOT',
+                    'dns_name' => $activeDns,
+                    'hotspot_name' => $activeHotspotName,
                     'currency' => 'Rp'
                 );
             }
             sendJsonResponse(true, array(
                 'profile' => $profileName,
-                'dns_name' => 'hotspot.yunus',
-                'hotspot_name' => 'PACENET HOTSPOT',
+                'dns_name' => $activeDns,
+                'hotspot_name' => $activeHotspotName,
                 'currency' => 'Rp',
                 'vouchers' => $vouchers
             ));

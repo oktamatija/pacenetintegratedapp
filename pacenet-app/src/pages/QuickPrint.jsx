@@ -35,36 +35,20 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
     if (vouchersForPrint && vouchersForPrint.length > 0) {
       setVouchers(vouchersForPrint);
       setVoucherLimit(vouchersForPrint.length);
+      if (vouchersForPrint[0]?.profile) {
+        setSelectedProfile(vouchersForPrint[0].profile);
+      }
     }
   }, [vouchersForPrint]);
 
-  // Load profiles directly from central Pacenet database
-  useEffect(() => {
-    const loadProfiles = async () => {
-      try {
-        const res = await fetch('/api/vouchers.php?action=list&limit=1');
-        const json = await res.json();
-        if (json.success && json.data?.profiles) {
-          setProfiles(json.data.profiles);
-          if (!selectedProfile || selectedProfile === 'all') {
-            setSelectedProfile(json.data.profiles[0]?.name || 'all');
-          }
-        }
-      } catch (e) {
-        console.error('Failed to load profiles', e);
-      }
-    };
-    loadProfiles();
-  }, []);
-
   // Fetch vouchers based on selected profile directly from database
-  const fetchVouchersByProfile = async () => {
+  const fetchVouchersByProfile = async (targetLimit = voucherLimit, targetProfile = selectedProfile) => {
     setLoading(true);
     try {
       const q = new URLSearchParams({
         action: 'quick_vouchers',
-        profile: selectedProfile || 'all',
-        limit: voucherLimit.toString()
+        profile: targetProfile || 'all',
+        limit: targetLimit.toString()
       });
       const res = await fetch(`/api/profiles.php?${q.toString()}`);
       const json = await res.json();
@@ -80,21 +64,40 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
     }
   };
 
+  // Load profiles directly from central Pacenet database
+  useEffect(() => {
+    const loadProfiles = async () => {
+      try {
+        const res = await fetch('/api/vouchers.php?action=list&limit=1');
+        const json = await res.json();
+        if (json.success && json.data?.profiles) {
+          setProfiles(json.data.profiles);
+          if (!selectedProfile || selectedProfile === 'all') {
+            const firstProf = json.data.profiles[0]?.name || 'all';
+            setSelectedProfile(firstProf);
+            // If no vouchers passed from parent, automatically fetch real vouchers
+            if (!vouchersForPrint || vouchersForPrint.length === 0) {
+              fetchVouchersByProfile(voucherLimit, firstProf);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load profiles', e);
+      }
+    };
+    loadProfiles();
+  }, []);
+
   const handlePrint = () => {
+    if (!vouchers || vouchers.length === 0) {
+      alert('Tidak ada voucher yang dapat dicetak. Silakan generate atau tarik voucher terlebih dahulu.');
+      return;
+    }
     window.print();
   };
 
-  // Fallback demo vouchers if none loaded yet
-  const displayList = vouchers.length > 0 ? vouchers : Array.from({ length: 55 }, (_, i) => ({
-    username: `pn-${(i + 1).toString().padStart(4, '0')}`,
-    password: `pn-${(i + 1).toString().padStart(4, '0')}`,
-    profile: '5K-1HARI',
-    price: 5000,
-    validity: '1d',
-    hotspot_name: 'PACENET HAMADI',
-    dns_name: 'hotspot.yunus',
-    comment: 'batch-demo'
-  }));
+  // Real vouchers to display (never fall back to dummy/fake vouchers)
+  const displayList = vouchers;
 
   // Chunk displayList into exact groups of 55 for F4 pages
   const chunkArray = (arr, size) => {
@@ -143,14 +146,14 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Printer size={20} color="var(--accent-cyan)" />
                 <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#fff' }}>
-                  Pencetakan Voucher: Kertas F4 (55 Slip/Lembar) &amp; Thermal
+                  Pencetakan Voucher: Kertas F4 (55 Slip/Lembar)
                 </h2>
                 <span className="badge badge-cyan" style={{ fontSize: '11px', fontWeight: 700 }}>
                   {paperSize === 'f4' ? `${displayList.length} Voucher (${f4Pages.length} Lembar F4)` : `${displayList.length} Voucher`}
                 </span>
               </div>
               <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Format presisi F4 Folio 215mm x 330mm (5 Kolom x 11 Baris), Thermal POS 58mm/80mm, atau A4.
+                Format presisi F4 Folio 215mm x 330mm (5 Kolom x 11 Baris) atau A4.
               </p>
             </div>
           </div>
@@ -159,9 +162,12 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
             <button 
               className="btn btn-primary"
               onClick={handlePrint}
+              disabled={displayList.length === 0 || loading}
               style={{
-                background: 'linear-gradient(135deg, #00d2d3 0%, #0984e3 100%)',
-                boxShadow: '0 0 18px rgba(0, 210, 211, 0.4)',
+                background: displayList.length === 0 ? 'var(--bg-card)' : 'linear-gradient(135deg, #00d2d3 0%, #0984e3 100%)',
+                boxShadow: displayList.length === 0 ? 'none' : '0 0 18px rgba(0, 210, 211, 0.4)',
+                opacity: displayList.length === 0 ? 0.6 : 1,
+                cursor: displayList.length === 0 ? 'not-allowed' : 'pointer',
                 padding: '10px 20px',
                 fontSize: '13.5px',
                 fontWeight: 800
@@ -196,8 +202,6 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
             >
               <option value="f4">📄 Kertas F4 / Folio (55 Voucher / Lembar - 5x11)</option>
               <option value="grid">📑 Lembar A4 (Grid 3 Kolom - 220px)</option>
-              <option value="58mm">🧾 Thermal POS 58mm (Kecil)</option>
-              <option value="80mm">🧾 Thermal POS 80mm (Standar POS)</option>
             </select>
           </div>
 
@@ -283,7 +287,11 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
             <select
               className="filter-select"
               value={selectedProfile}
-              onChange={e => setSelectedProfile(e.target.value)}
+              onChange={e => {
+                const newProfile = e.target.value;
+                setSelectedProfile(newProfile);
+                fetchVouchersByProfile(voucherLimit, newProfile);
+              }}
               style={{ padding: '4px 10px', fontSize: '12px', minWidth: '150px' }}
             >
               <option value="all">Semua Paket Profile</option>
@@ -300,24 +308,32 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
             <select
               className="filter-select"
               value={voucherLimit}
-              onChange={e => setVoucherLimit(Number(e.target.value))}
+              onChange={e => {
+                const newLimit = Number(e.target.value);
+                setVoucherLimit(newLimit);
+                fetchVouchersByProfile(newLimit, selectedProfile);
+              }}
               style={{ padding: '4px 10px', fontSize: '12px', fontWeight: 600 }}
             >
+              {![55, 110, 165, 220, 275, 550, 1100, 2750, 5500, 11000].includes(voucherLimit) && (
+                <option value={voucherLimit}>{voucherLimit.toLocaleString()} Slip ({Math.ceil(voucherLimit / 55)} Lembar F4)</option>
+              )}
               <option value={55}>55 Slip (1 Lembar F4)</option>
               <option value={110}>110 Slip (2 Lembar F4)</option>
               <option value={165}>165 Slip (3 Lembar F4)</option>
               <option value={220}>220 Slip (4 Lembar F4)</option>
               <option value={275}>275 Slip (5 Lembar F4)</option>
               <option value={550}>550 Slip (10 Lembar F4)</option>
-              <option value={10}>10 Slip (Thermal)</option>
-              <option value={25}>25 Slip (Thermal)</option>
-              <option value={50}>50 Slip (Thermal)</option>
+              <option value={1100}>1.100 Slip (20 Lembar F4)</option>
+              <option value={2750}>2.750 Slip (50 Lembar F4)</option>
+              <option value={5500}>5.500 Slip (100 Lembar F4)</option>
+              <option value={11000}>11.000 Slip (200 Lembar F4)</option>
             </select>
           </div>
 
           <button 
             className="btn btn-secondary btn-sm"
-            onClick={fetchVouchersByProfile}
+            onClick={() => fetchVouchersByProfile(voucherLimit, selectedProfile)}
             disabled={loading}
             style={{ padding: '5px 12px', fontSize: '12px', borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)' }}
           >
@@ -330,7 +346,54 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
       {/* =========================================================================
           PRINT PREVIEW & SHEET RENDERING
           ========================================================================= */}
-      {paperSize === 'f4' ? (
+      {displayList.length === 0 ? (
+        /* Empty State Guard - Prevents printing blank or fake sheets */
+        <div className="no-print glass-card" style={{ padding: '50px 24px', textAlign: 'center', margin: '30px auto', maxWidth: '620px' }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            background: 'rgba(0, 210, 211, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px auto',
+            color: 'var(--accent-cyan)'
+          }}>
+            <RefreshCw size={30} className={loading ? 'spin-anim' : ''} />
+          </div>
+          <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', marginBottom: '8px' }}>
+            {loading ? 'Sedang Memuat Voucher Siap Cetak...' : 'Belum Ada Voucher yang Dipilih'}
+          </h3>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '22px', lineHeight: 1.6 }}>
+            {loading 
+              ? 'Mengambil daftar voucher aktif dari database cloud. Mohon tunggu...' 
+              : 'Silakan pilih paket profile dan klik tombol "Tarik Voucher Siap Cetak" di atas, atau buat batch voucher baru melalui tombol di bawah.'}
+          </p>
+          {!loading && (
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button 
+                className="btn btn-primary btn-sm"
+                onClick={() => fetchVouchersByProfile(voucherLimit, selectedProfile)}
+                style={{ padding: '8px 16px', fontWeight: 700 }}
+              >
+                <RefreshCw size={14} />
+                <span>Tarik Voucher Database</span>
+              </button>
+              {onNavigate && (
+                <button 
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => onNavigate('generate')}
+                  style={{ padding: '8px 16px', fontWeight: 700, borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)' }}
+                >
+                  <ArrowLeft size={14} />
+                  <span>Ke Generator Voucher</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      ) : paperSize === 'f4' ? (
         /* =====================================================================
            MODE 1: EXACT F4 (FOLIO) 55 VOUCHERS PER SHEET (5x11 GRID)
            ===================================================================== */
@@ -360,7 +423,9 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
                 {pageVouchers.map((v, idx) => {
                   const globalNum = pageIndex * 55 + idx + 1;
                   const dnsName = v.dns_name || 'hotspot.yunus';
-                  const loginUrl = `http://${dnsName}/login?username=${encodeURIComponent(v.username)}&password=${encodeURIComponent(v.username)}`;
+                  const voucherPassword = v.password || v.username;
+                  const hasSeparatePass = Boolean(v.password && v.password !== v.username);
+                  const loginUrl = `http://${dnsName}/login?username=${encodeURIComponent(v.username)}&password=${encodeURIComponent(voucherPassword)}`;
 
                   return (
                     <div key={idx} className="v-f4">
@@ -374,28 +439,66 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
                         </div>
                       </div>
 
-                      {/* Body: Single Unified Voucher Code */}
+                      {/* Body: Single Unified Voucher Code OR Dual Code (Username & Password) */}
                       <div className="v-f4-body">
-                        {showQr ? (
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1mm', width: '100%' }}>
-                            <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                              <div className="v-f4-label">KODE VOUCHER</div>
-                              <div className="v-f4-code v-f4-code-qr">{v.username}</div>
+                        {hasSeparatePass ? (
+                          /* DUAL CODE: USERNAME & PASSWORD */
+                          showQr ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1mm', width: '100%' }}>
+                              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.4mm' }}>
+                                <div style={{ border: '1.2px solid #000', borderRadius: '2px', padding: '0.3mm 0.5mm', textAlign: 'center' }}>
+                                  <div className="v-f4-label" style={{ fontSize: '5pt', margin: 0 }}>USER</div>
+                                  <div style={{ fontSize: '7.5pt', fontWeight: 900, fontFamily: 'Arial, Consolas, monospace', lineHeight: 1.1, color: '#000' }}>{v.username}</div>
+                                </div>
+                                <div style={{ border: '1.2px solid #000', borderRadius: '2px', padding: '0.3mm 0.5mm', textAlign: 'center' }}>
+                                  <div className="v-f4-label" style={{ fontSize: '5pt', margin: 0 }}>PASS</div>
+                                  <div style={{ fontSize: '7.5pt', fontWeight: 900, fontFamily: 'Arial, Consolas, monospace', lineHeight: 1.1, color: '#000' }}>{v.password}</div>
+                                </div>
+                              </div>
+                              <div style={{ width: '16mm', height: '16mm', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <QRCodeSVG 
+                                  value={loginUrl} 
+                                  size={52} 
+                                  level="M" 
+                                  marginSize={0}
+                                />
+                              </div>
                             </div>
-                            <div style={{ width: '18mm', height: '18mm', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <QRCodeSVG 
-                                value={loginUrl} 
-                                size={58} 
-                                level="M" 
-                                marginSize={0}
-                              />
+                          ) : (
+                            <div className="v-f4-up">
+                              <div className="v-f4-up-box" style={{ textAlign: 'center' }}>
+                                <div className="v-f4-label">USERNAME</div>
+                                <div className="v-f4-val">{v.username}</div>
+                              </div>
+                              <div className="v-f4-up-box" style={{ textAlign: 'center' }}>
+                                <div className="v-f4-label">PASSWORD</div>
+                                <div className="v-f4-val">{v.password}</div>
+                              </div>
                             </div>
-                          </div>
+                          )
                         ) : (
-                          <div style={{ width: '100%', textAlign: 'center' }}>
-                            <div className="v-f4-label">KODE VOUCHER</div>
-                            <div className="v-f4-code">{v.username}</div>
-                          </div>
+                          /* SINGLE CODE: USERNAME = PASSWORD */
+                          showQr ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1mm', width: '100%' }}>
+                              <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                                <div className="v-f4-label">KODE VOUCHER</div>
+                                <div className="v-f4-code v-f4-code-qr">{v.username}</div>
+                              </div>
+                              <div style={{ width: '18mm', height: '18mm', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <QRCodeSVG 
+                                  value={loginUrl} 
+                                  size={58} 
+                                  level="M" 
+                                  marginSize={0}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ width: '100%', textAlign: 'center' }}>
+                              <div className="v-f4-label">KODE VOUCHER</div>
+                              <div className="v-f4-code">{v.username}</div>
+                            </div>
+                          )
                         )}
                       </div>
 
@@ -425,7 +528,9 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
         <div className={`print-container size-${paperSize}`} style={{ transform: `scale(${printScale})`, transformOrigin: 'top center' }}>
           {displayList.map((v, idx) => {
             const dnsName = v.dns_name || 'hotspot.yunus';
-            const loginUrl = `http://${dnsName}/login?username=${encodeURIComponent(v.username)}&password=${encodeURIComponent(v.username)}`;
+            const voucherPassword = v.password || v.username;
+            const hasSeparatePass = Boolean(v.password && v.password !== v.username);
+            const loginUrl = `http://${dnsName}/login?username=${encodeURIComponent(v.username)}&password=${encodeURIComponent(voucherPassword)}`;
 
             return (
               <div key={idx} className={`voucher-slip border-${borderStyle}`}>
@@ -441,8 +546,23 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
                     </div>
                   )}
 
-                  <div className="slip-label">KODE VOUCHER</div>
-                  <div className="slip-code">{v.username}</div>
+                  {hasSeparatePass ? (
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', width: '100%', margin: '4px 0' }}>
+                      <div style={{ flex: 1, border: '1.5px solid #000', padding: '5px 4px', borderRadius: '4px', textAlign: 'center', background: '#fff' }}>
+                        <div className="slip-label" style={{ marginBottom: '2px', fontSize: '9px', fontWeight: 800 }}>USERNAME</div>
+                        <div className="slip-code" style={{ fontSize: '13px', fontWeight: 900 }}>{v.username}</div>
+                      </div>
+                      <div style={{ flex: 1, border: '1.5px solid #000', padding: '5px 4px', borderRadius: '4px', textAlign: 'center', background: '#fff' }}>
+                        <div className="slip-label" style={{ marginBottom: '2px', fontSize: '9px', fontWeight: 800 }}>PASSWORD</div>
+                        <div className="slip-code" style={{ fontSize: '13px', fontWeight: 900 }}>{v.password}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="slip-label">KODE VOUCHER</div>
+                      <div className="slip-code">{v.username}</div>
+                    </>
+                  )}
                 </div>
 
                 <div className="slip-footer">
@@ -609,21 +729,24 @@ export default function QuickPrint({ vouchersForPrint, onNavigate, initialProfil
         .v-f4-up {
           display: flex;
           justify-content: space-between;
-          gap: 1mm;
+          gap: 0.8mm;
           width: 100%;
         }
         .v-f4-up-box {
           flex: 1;
           border: 1.2px solid #000;
-          font-family: Arial, sans-serif;
-          padding: 0.6mm 0.4mm;
+          font-family: Arial, Consolas, monospace;
+          padding: 0.5mm 0.3mm;
           border-radius: 2px;
+          box-sizing: border-box;
+          background: #fff;
         }
         .v-f4-val {
-          font-size: 9pt;
+          font-size: 8pt;
           font-weight: 900;
           color: #000;
-          letter-spacing: 0.4px;
+          letter-spacing: 0.3px;
+          line-height: 1.1;
         }
 
         .v-f4-footer {

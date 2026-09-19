@@ -615,16 +615,6 @@ export default function Vouchers({ onNavigate, setVouchersForPrint, isReadOnly }
             </button>
 
             <button
-              className="btn btn-secondary btn-sm"
-              onClick={handlePrintSelected}
-              style={{ borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)', fontWeight: 600 }}
-              title="Cetak voucher terpilih ke Printer Thermal POS 58mm / 80mm"
-            >
-              <Printer size={14} />
-              <span>Cetak Terpilih (Thermal POS)</span>
-            </button>
-
-            <button
               className="btn btn-danger btn-sm"
               onClick={handleBulkDelete}
               style={{ fontWeight: 600 }}

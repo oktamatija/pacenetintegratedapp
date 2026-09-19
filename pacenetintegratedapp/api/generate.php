@@ -77,13 +77,10 @@ if ($nameLength < $neededLength) {
 $parsedTime = parseBilingualDuration($timelimitRaw);
 $timelimit = $parsedTime['valid'] ? $parsedTime['mikrotik'] : '';
 
-// Ensure comment starts with vc- or up-
+// Ensure comment starts with vc- or up- according to actual userMode
 $prefixUcode = ($userMode === 'vc' ? 'vc-' : 'up-');
-if (strpos($customComment, 'vc-') !== 0 && strpos($customComment, 'up-') !== 0) {
-    $comment = $prefixUcode . $customComment;
-} else {
-    $comment = $customComment;
-}
+$cleanComment = preg_replace('/^(vc-|up-)/', '', $customComment);
+$comment = $prefixUcode . $cleanComment;
 
 function generateRandomString($length, $type) {
     switch ($type) {
@@ -120,13 +117,20 @@ if ($targetRouter === 'all') {
 } elseif (isset($data[$targetRouter])) {
     $targetRouters[] = $targetRouter;
 } else {
-    $targetRouters[] = 'Rumah-DOLPHIN';
+    $firstKey = null;
+    foreach ($data as $k => $v) {
+        if ($k !== 'mikhmon' && !empty($k) && strpos($k, 'new-') !== 0 && !empty($v[1])) {
+            $firstKey = $k;
+            break;
+        }
+    }
+    $targetRouters[] = $firstKey ?: 'Rumah-DOLPHIN';
 }
 
 // 1. Get profile details
 $price = '';
 $validity = '';
-$primarySession = $targetRouters[0] ?? 'Rumah-DOLPHIN';
+$primarySession = $targetRouters[0] ?? (isset($data['Rumah-DOLPHIN']) ? 'Rumah-DOLPHIN' : (array_keys($data)[0] ?? 'Rumah-DOLPHIN'));
 
 foreach ($targetRouters as $sName) {
     $conn = connectMikrotik($sName, 3);
@@ -153,6 +157,15 @@ if (empty($price)) {
     elseif (strpos($profile, '1bulan') !== false) $price = '100000';
     else $price = '5000';
 }
+
+// Allow custom price override from user request without needing to modify user profiles
+if (isset($body['price']) && $body['price'] !== '') {
+    $customPrice = preg_replace('/[^0-9.]/', '', strval($body['price']));
+    if ($customPrice !== '') {
+        $price = $customPrice;
+    }
+}
+
 if (empty($validity)) {
     if (strpos($profile, '12-jam') !== false) $validity = '12h';
     elseif (strpos($profile, '1minggu') !== false) $validity = '7d';
@@ -203,6 +216,7 @@ for ($i = 0; $i < $qty; $i++) {
         'password' => $upass,
         'profile' => $profile,
         'price' => $price,
+        'sprice' => $price,
         'validity' => $normValidity ?: $validity,
         'validity_display' => formatDurationHuman($normValidity ?: $validity, 'id'),
         'timelimit' => $timelimit ?: $normValidity,
@@ -213,10 +227,8 @@ for ($i = 0; $i < $qty; $i++) {
         'dns_name' => $dnsname
     );
 
-    // Keep preview list (up to 500 for UI responsiveness)
-    if (count($previewList) < 500) {
-        $previewList[] = $voucherItem;
-    }
+    // Keep voucher list for immediate print rendering
+    $previewList[] = $voucherItem;
 
     $currentChunk[] = array($uname, $upass);
 
